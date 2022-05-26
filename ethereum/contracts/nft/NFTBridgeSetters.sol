@@ -3,9 +3,11 @@
 
 pragma solidity ^0.8.0;
 
+import "../ShutdownSwitch.sol";
+
 import "./NFTBridgeState.sol";
 
-contract NFTBridgeSetters is NFTBridgeState {
+contract NFTBridgeSetters is NFTBridgeState, ShutdownSwitch {
     function setInitialized(address implementatiom) internal {
         _state.initializedImplementations[implementatiom] = true;
     }
@@ -53,5 +55,11 @@ contract NFTBridgeSetters is NFTBridgeState {
 
     function clearSplCache(uint256 tokenId) internal {
         delete _state.splCache[tokenId];
+    }
+
+    // This is required by ShutdownSwitch.
+    function getCurrentGuardianSet() public virtual override view returns (Structs.GuardianSet memory) {
+        IWormhole wh = IWormhole(_state.wormhole);
+        return wh.getGuardianSet(wh.getCurrentGuardianSetIndex());
     }
 }

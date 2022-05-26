@@ -3,9 +3,11 @@
 
 pragma solidity ^0.8.0;
 
+import "../ShutdownSwitch.sol";
+
 import "./BridgeState.sol";
 
-contract BridgeSetters is BridgeState {
+contract BridgeSetters is BridgeState, ShutdownSwitch {
     function setInitialized(address implementatiom) internal {
         _state.initializedImplementations[implementatiom] = true;
     }
@@ -53,5 +55,11 @@ contract BridgeSetters is BridgeState {
 
     function setOutstandingBridged(address token, uint256 outstanding) internal {
         _state.outstandingBridged[token] = outstanding;
+    }
+
+    // This is required by ShutdownSwitch.
+    function getCurrentGuardianSet() public virtual override view returns (Structs.GuardianSet memory) {
+        IWormhole wh = IWormhole(_state.wormhole);
+        return wh.getGuardianSet(wh.getCurrentGuardianSetIndex());
     }
 }
