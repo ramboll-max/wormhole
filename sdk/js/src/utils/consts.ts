@@ -17,6 +17,7 @@ export const CHAINS = {
   near: 15,
   moonbeam: 16,
   neon: 17,
+  terra2: 18,
   ropsten: 10001,
 } as const;
 
@@ -144,6 +145,11 @@ const MAINNET = {
     token_bridge: undefined,
     nft_bridge: undefined,
   },
+  terra2: {
+    core: undefined,
+    token_bridge: undefined,
+    nft_bridge: undefined,
+  },
   ropsten: {
     core: undefined,
     token_bridge: undefined,
@@ -241,6 +247,11 @@ const TESTNET = {
     core: "0xE4eacc10990ba3308DdCC72d985f2a27D20c7d03",
     token_bridge: "0xd11De1f930eA1F7Dd0290Fe3a2e35b9C91AEFb37",
     nft_bridge: "0xa52Da3B1ffd258a2fFB7719a6aeE24095eEE24E2",
+  },
+  terra2: {
+    core: undefined,
+    token_bridge: undefined,
+    nft_bridge: undefined,
   },
   ropsten: {
     core: "0x210c5F5e2AF958B4defFe715Dc621b7a3BA888c5",
@@ -340,6 +351,11 @@ const DEVNET = {
     token_bridge: undefined,
     nft_bridge: undefined,
   },
+  terra2: {
+    core: undefined,
+    token_bridge: undefined,
+    nft_bridge: undefined,
+  },
   ropsten: {
     core: undefined,
     token_bridge: undefined,
@@ -403,6 +419,7 @@ export const CHAIN_ID_CELO = CHAINS["celo"];
 export const CHAIN_ID_NEAR = CHAINS["near"];
 export const CHAIN_ID_MOONBEAM = CHAINS["moonbeam"];
 export const CHAIN_ID_NEON = CHAINS["neon"];
+export const CHAIN_ID_TERRA2 = CHAINS["terra2"];
 export const CHAIN_ID_ETHEREUM_ROPSTEN = CHAINS["ropsten"];
 
 // This inverts the [[CHAINS]] object so that we can look up a chain by id
