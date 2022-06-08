@@ -44,6 +44,8 @@ export type EVMChainName =
   | "neon"
   | "ropsten";
 
+export type TerraChainName = "terra" | "terra2";
+
 export type Contracts = {
   core: string | undefined;
   token_bridge: string | undefined;
@@ -440,6 +442,8 @@ export const CHAIN_ID_TO_NAME: ChainIdToName = Object.entries(CHAINS).reduce(
  */
 export type EVMChainId = typeof CHAINS[EVMChainName];
 
+export type TerraChainId = typeof CHAINS[TerraChainName];
+
 /**
  *
  * Returns true when called with a valid chain, and narrows the type in the
@@ -537,6 +541,13 @@ export function isEVMChain(
   }
 }
 
+export function isTerraChain(
+  chain: ChainId | ChainName
+): chain is TerraChainId | TerraChainName {
+  const chainId = coalesceChainId(chain);
+  return chainId === CHAIN_ID_TERRA || chainId === CHAIN_ID_TERRA2;
+}
+
 /**
  *
  * Asserts that the given chain id or chain name is an EVM chain, and throws otherwise.
@@ -556,6 +567,7 @@ export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const WSOL_DECIMALS = 9;
 export const MAX_VAA_DECIMALS = 8;
 
+// TODO: will this work for terra2?
 export const TERRA_REDEEMED_CHECK_WALLET_ADDRESS =
   "terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v";
 
