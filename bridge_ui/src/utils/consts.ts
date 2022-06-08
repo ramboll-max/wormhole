@@ -20,6 +20,7 @@ import {
   CONTRACTS,
   isEVMChain,
   isTerraChain,
+  TerraChainId,
 } from "@certusone/wormhole-sdk";
 import { clusterApiUrl } from "@solana/web3.js";
 import { getAddress } from "ethers/lib/utils";
@@ -437,32 +438,39 @@ export const SOLANA_HOST = process.env.REACT_APP_SOLANA_API_URL
   ? clusterApiUrl("devnet")
   : "http://localhost:8899";
 
-// TODO: terra2 support
-export const TERRA_HOST =
-  CLUSTER === "mainnet"
+export const getTerraConfig = (chainId: TerraChainId) => {
+  const isClassic = chainId === CHAIN_ID_TERRA;
+  return CLUSTER === "mainnet"
     ? {
-        //URL: "https://phoenix-lcd.terra.dev",
-        //chainId: "phoenix-1"
-        URL: "https://columbus-lcd.terra.dev",
-        chainID: "columbus-5",
+        URL:
+          chainId === CHAIN_ID_TERRA2
+            ? "https://phoenix-lcd.terra.dev"
+            : "https://columbus-lcd.terra.dev",
+        chainID: chainId === CHAIN_ID_TERRA2 ? "phoenix-1" : "columbus-5",
         name: "mainnet",
-        isClassic: true,
+        isClassic,
       }
     : CLUSTER === "testnet"
     ? {
-        //URL: "https://pisco-lcd.terra.dev",
-        //chainId: "pisco-1"
-        URL: "https://bombay-lcd.terra.dev",
-        chainID: "bombay-12",
+        URL:
+          chainId === CHAIN_ID_TERRA2
+            ? "https://pisco-lcd.terra.dev"
+            : "https://bombay-lcd.terra.dev",
+        chainID: chainId === CHAIN_ID_TERRA2 ? "pisco-1" : "bombay-12",
         name: "testnet",
-        isClassic: true,
+        isClassic,
       }
     : {
-        URL: "http://localhost:1317",
-        chainID: "columbus-5",
+        URL:
+          chainId === CHAIN_ID_TERRA2
+            ? "http://localhost:1318"
+            : "http://localhost:1317",
+        chainID: chainId === CHAIN_ID_TERRA2 ? "phoenix-1" : "columbus-5",
         name: "localterra",
-        isClassic: true,
+        isClassic,
       };
+};
+
 export const ALGORAND_HOST =
   CLUSTER === "mainnet"
     ? {
@@ -1360,14 +1368,20 @@ export const getMigrationAssetMap = (chainId: ChainId) => {
 export const SUPPORTED_TERRA_TOKENS = ["uluna", "uusd"];
 export const TERRA_DEFAULT_FEE_DENOM = SUPPORTED_TERRA_TOKENS[0];
 
-// TODO: terra2 support
-export const TERRA_FCD_BASE =
+export const getTerraFCDBaseUrl = (chainId: TerraChainId) =>
   CLUSTER === "mainnet"
-    ? "https://columbus-fcd.terra.dev" //https://phoenix-fcd.terra.dev
+    ? chainId === CHAIN_ID_TERRA2
+      ? "https://phoenix-fcd.terra.dev"
+      : "https://columbus-fcd.terra.dev"
     : CLUSTER === "testnet"
-    ? "https://bombay-fcd.terra.dev" //https://pisco-fcd.terra.dev
+    ? chainId === CHAIN_ID_TERRA2
+      ? "https://pisco-fcd.terra.dev"
+      : "https://bombay-fcd.terra.dev"
+    : chainId === CHAIN_ID_TERRA2
+    ? "http://localhost:3061"
     : "http://localhost:3060";
-export const TERRA_GAS_PRICES_URL = `${TERRA_FCD_BASE}/v1/txs/gas_prices`;
+export const getTerraGasPricesUrl = (chainId: TerraChainId) =>
+  `${getTerraFCDBaseUrl(chainId)}/v1/txs/gas_prices`;
 
 export const TOTAL_TRANSACTIONS_WORMHOLE = `https://europe-west3-wormhole-315720.cloudfunctions.net/mainnet-totals?groupBy=address`;
 
@@ -1496,7 +1510,6 @@ export const UST_ADDRESS = "uusd";
 export type RelayerCompareAsset = {
   [key in ChainId]: string;
 };
-// TODO: terra2 support
 export const RELAYER_COMPARE_ASSET: RelayerCompareAsset = {
   [CHAIN_ID_SOLANA]: "solana",
   [CHAIN_ID_ETH]: "ethereum",
@@ -1538,7 +1551,6 @@ export const getChainShortName = (chainId: ChainId) => {
   return chainId === CHAIN_ID_BSC ? "BSC" : CHAINS_BY_ID[chainId]?.name;
 };
 
-// TODO: terra2 support
 export const COLOR_BY_CHAIN_ID: { [key in ChainId]?: string } = {
   [CHAIN_ID_SOLANA]: "#31D7BB",
   [CHAIN_ID_ETH]: "#8A92B2",

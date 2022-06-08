@@ -1,30 +1,39 @@
 import {
   canonicalAddress,
+  CHAIN_ID_TERRA2,
   isNativeDenom,
   isNativeTerra,
+  TerraChainId,
 } from "@certusone/wormhole-sdk";
 import { formatUnits } from "@ethersproject/units";
 import { LCDClient, isTxError } from "@terra-money/terra.js";
 import { ConnectedWallet, TxResult } from "@terra-money/wallet-provider";
 import axios from "axios";
 // import { TerraTokenMetadata } from "../hooks/useTerraTokenMap";
-import { TERRA_GAS_PRICES_URL, TERRA_HOST } from "./consts";
+import { getTerraGasPricesUrl, getTerraConfig } from "./consts";
 
 export const NATIVE_TERRA_DECIMALS = 6;
+export const LUNA_SYMBOL = "LUNA";
 export const LUNA_CLASSIC_SYMBOL = "LUNC";
 
-// TODO: terra2 support
-export const getNativeTerraIcon = (symbol = "") =>
-  `https://assets.terra.money/icon/60/${
-    symbol === LUNA_CLASSIC_SYMBOL ? "Luna" : symbol.slice(0, symbol.length - 1)
-  }.png`;
+export const getNativeTerraIcon = (symbol: string) =>
+  symbol === LUNA_SYMBOL || symbol === LUNA_CLASSIC_SYMBOL
+    ? `https://assets.terra.money/icon/svg/${symbol}.svg`
+    : `https://assets.terra.money/icon/60/${symbol.slice(
+        0,
+        symbol.length - 1
+      )}.png`;
 
-// inspired by https://github.com/terra-money/station/blob/dca7de43958ce075c6e46605622203b9859b0e14/src/lib/utils/format.ts#L38
-export const formatNativeDenom = (denom = ""): string => {
+export const formatNativeDenom = (
+  denom: string,
+  chainId: TerraChainId
+): string => {
   const unit = denom.slice(1).toUpperCase();
   const isValidTerra = isNativeTerra(denom);
   return denom === "uluna"
-    ? LUNA_CLASSIC_SYMBOL
+    ? chainId === CHAIN_ID_TERRA2
+      ? LUNA_SYMBOL
+      : LUNA_CLASSIC_SYMBOL
     : isValidTerra
     ? unit.slice(0, 2) + "TC"
     : "";
@@ -33,8 +42,11 @@ export const formatNativeDenom = (denom = ""): string => {
 export const formatTerraNativeBalance = (balance = ""): string =>
   formatUnits(balance, 6);
 
-export async function waitForTerraExecution(transaction: TxResult) {
-  const lcd = new LCDClient(TERRA_HOST);
+export async function waitForTerraExecution(
+  transaction: TxResult,
+  chainId: TerraChainId
+) {
+  const lcd = new LCDClient(getTerraConfig(chainId));
   let info;
   while (!info) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -52,16 +64,16 @@ export async function waitForTerraExecution(transaction: TxResult) {
   return info;
 }
 
-// TODO: terra2 support
-export const isValidTerraAddress = (address: string) => {
+export const isValidTerraAddress = (address: string, chainId: TerraChainId) => {
   if (isNativeDenom(address)) {
     return true;
   }
   try {
     const startsWithTerra = address && address.startsWith("terra");
     const isParseable = canonicalAddress(address);
-    const isLength20 = isParseable.length === 20;
-    return !!(startsWithTerra && isParseable && isLength20);
+    const isLengthOk =
+      isParseable.length === (chainId === CHAIN_ID_TERRA2 ? 32 : 20);
+    return !!(startsWithTerra && isParseable && isLengthOk);
   } catch (error) {
     return false;
   }
@@ -71,13 +83,14 @@ export async function postWithFees(
   wallet: ConnectedWallet,
   msgs: any[],
   memo: string,
-  feeDenoms: string[]
+  feeDenoms: string[],
+  chainId: TerraChainId
 ) {
   // don't try/catch, let errors propagate
-  const lcd = new LCDClient(TERRA_HOST);
+  const lcd = new LCDClient(getTerraConfig(chainId));
   //Thus, we are going to pull it directly from the current FCD.
   const gasPrices = await axios
-    .get(TERRA_GAS_PRICES_URL)
+    .get(getTerraGasPricesUrl(chainId))
     .then((result) => result.data);
 
   const account = await lcd.auth.accountInfo(wallet.walletAddress);
