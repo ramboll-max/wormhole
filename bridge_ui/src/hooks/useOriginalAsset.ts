@@ -70,7 +70,11 @@ export async function getOriginalAssetToken(
       );
     } else if (isTerraChain(foreignChain)) {
       const lcd = new LCDClient(getTerraConfig(foreignChain));
-      promise = await getOriginalAssetTerra(lcd, foreignNativeStringAddress);
+      promise = await getOriginalAssetTerra(
+        lcd,
+        foreignNativeStringAddress,
+        foreignChain
+      );
     } else if (foreignChain === CHAIN_ID_ALGORAND) {
       const algodClient = new Algodv2(
         ALGORAND_HOST.algodToken,

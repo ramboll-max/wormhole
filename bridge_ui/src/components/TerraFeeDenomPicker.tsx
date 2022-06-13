@@ -77,7 +77,7 @@ export default function TerraFeeDenomPicker(props: TerraFeeDenomPickerProps) {
       });
     }
     return items;
-  }, [balances, terraFeeDenom]);
+  }, [balances, terraFeeDenom, props.chainId]);
 
   return (
     <div className={classes.feePickerContainer}>

@@ -132,7 +132,7 @@ function useCheckIfWormholeWrapped(nft?: boolean) {
         try {
           const lcd = new LCDClient(getTerraConfig(sourceChain));
           const wrappedInfo = makeStateSafe(
-            await getOriginalAssetTerra(lcd, sourceAsset)
+            await getOriginalAssetTerra(lcd, sourceAsset, sourceChain)
           );
           if (!cancelled) {
             dispatch(setSourceWormholeWrappedInfo(wrappedInfo));

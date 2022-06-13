@@ -17,8 +17,10 @@ export const LUNA_SYMBOL = "LUNA";
 export const LUNA_CLASSIC_SYMBOL = "LUNC";
 
 export const getNativeTerraIcon = (symbol: string) =>
-  symbol === LUNA_SYMBOL || symbol === LUNA_CLASSIC_SYMBOL
-    ? `https://assets.terra.money/icon/svg/${symbol}.svg`
+  symbol === LUNA_SYMBOL
+    ? `https://assets.terra.money/icon/svg/LUNA.png`
+    : symbol === LUNA_CLASSIC_SYMBOL
+    ? `https://assets.terra.money/icon/svg/LUNC.svg`
     : `https://assets.terra.money/icon/60/${symbol.slice(
         0,
         symbol.length - 1
@@ -28,6 +30,7 @@ export const formatNativeDenom = (
   denom: string,
   chainId: TerraChainId
 ): string => {
+  console.log(denom, chainId);
   const unit = denom.slice(1).toUpperCase();
   const isValidTerra = isNativeTerra(denom);
   return denom === "uluna"

@@ -813,9 +813,17 @@ export const TERRA_TOKEN_BRIDGE_ADDRESS =
     ? "terra1pseddrv0yfsn76u4zxrjmtf45kdlmalswdv39a"
     : "terra10pyejy66429refv3g35g2t7am0was7ya7kz2a4";
 export const TERRA2_BRIDGE_ADDRESS =
-  CLUSTER === "mainnet" ? "" : CLUSTER === "testnet" ? "" : "";
+  CLUSTER === "mainnet"
+    ? ""
+    : CLUSTER === "testnet"
+    ? ""
+    : "terra14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9ssrc8au";
 export const TERRA2_TOKEN_BRIDGE_ADDRESS =
-  CLUSTER === "mainnet" ? "" : CLUSTER === "testnet" ? "" : "";
+  CLUSTER === "mainnet"
+    ? ""
+    : CLUSTER === "testnet"
+    ? ""
+    : "terra1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquka9l6";
 export const ALGORAND_BRIDGE_ID = BigInt(
   CLUSTER === "mainnet" ? "0" : CLUSTER === "testnet" ? "86525623" : "4"
 );
