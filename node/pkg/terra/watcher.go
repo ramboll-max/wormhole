@@ -39,6 +39,13 @@ type (
 		// Incoming re-observation requests from the network. Pre-filtered to only
 		// include requests for our chainID.
 		obsvReqC chan *gossipv1.ObservationRequest
+
+		// Readiness component
+		readiness readiness.Component
+		// VAA ChainID of the network we're connecting to.
+		chainID vaa.ChainID
+		// Key for contract address in the wasm logs
+		contractAddressKey string
 	}
 )
 
@@ -83,12 +90,23 @@ func NewWatcher(
 	contract string,
 	lockEvents chan *common.MessagePublication,
 	setEvents chan *common.GuardianSet,
-	obsvReqC chan *gossipv1.ObservationRequest) *Watcher {
-	return &Watcher{urlWS: urlWS, urlLCD: urlLCD, contract: contract, msgChan: lockEvents, setChan: setEvents, obsvReqC: obsvReqC}
+	obsvReqC chan *gossipv1.ObservationRequest,
+	readiness readiness.Component,
+	chainID vaa.ChainID) *Watcher {
+
+	// CosmWasm 1.0.0
+	contractAddressKey := "_contract_address"
+	if chainID == vaa.ChainIDTerra {
+		// CosmWasm <1.0.0
+		contractAddressKey = "contract_address"
+	}
+
+
+	return &Watcher{urlWS: urlWS, urlLCD: urlLCD, contract: contract, msgChan: lockEvents, setChan: setEvents, obsvReqC: obsvReqC, readiness: readiness, chainID: chainID, contractAddressKey: contractAddressKey}
 }
 
 func (e *Watcher) Run(ctx context.Context) error {
-	p2p.DefaultRegistry.SetNetworkStats(vaa.ChainIDTerra, &gossipv1.Heartbeat_Network{
+	p2p.DefaultRegistry.SetNetworkStats(e.chainID, &gossipv1.Heartbeat_Network{
 		ContractAddress: e.contract,
 	})
 
@@ -99,7 +117,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 
 	c, _, err := websocket.DefaultDialer.DialContext(ctx, e.urlWS, nil)
 	if err != nil {
-		p2p.DefaultRegistry.AddErrorCount(vaa.ChainIDTerra, 1)
+		p2p.DefaultRegistry.AddErrorCount(e.chainID, 1)
 		terraConnectionErrors.WithLabelValues("websocket_dial_error").Inc()
 		return fmt.Errorf("websocket dial failed: %w", err)
 	}
@@ -115,7 +133,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 	}
 	err = c.WriteJSON(command)
 	if err != nil {
-		p2p.DefaultRegistry.AddErrorCount(vaa.ChainIDTerra, 1)
+		p2p.DefaultRegistry.AddErrorCount(e.chainID, 1)
 		terraConnectionErrors.WithLabelValues("websocket_subscription_error").Inc()
 		return fmt.Errorf("websocket subscription failed: %w", err)
 	}
@@ -123,13 +141,13 @@ func (e *Watcher) Run(ctx context.Context) error {
 	// Wait for the success response
 	_, _, err = c.ReadMessage()
 	if err != nil {
-		p2p.DefaultRegistry.AddErrorCount(vaa.ChainIDTerra, 1)
+		p2p.DefaultRegistry.AddErrorCount(e.chainID, 1)
 		terraConnectionErrors.WithLabelValues("event_subscription_error").Inc()
 		return fmt.Errorf("event subscription failed: %w", err)
 	}
 	logger.Info("subscribed to new transaction events")
 
-	readiness.SetReady(common.ReadinessTerraSyncing)
+	readiness.SetReady(e.readiness)
 
 	go func() {
 		t := time.NewTicker(5 * time.Second)
@@ -159,7 +177,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 			latestBlock := gjson.Get(blockJSON, "block.header.height")
 			logger.Info("current Terra height", zap.Int64("block", latestBlock.Int()))
 			currentTerraHeight.Set(float64(latestBlock.Int()))
-			p2p.DefaultRegistry.SetNetworkStats(vaa.ChainIDTerra, &gossipv1.Heartbeat_Network{
+			p2p.DefaultRegistry.SetNetworkStats(e.chainID, &gossipv1.Heartbeat_Network{
 				Height:          latestBlock.Int(),
 				ContractAddress: e.contract,
 			})
@@ -172,7 +190,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case r := <-e.obsvReqC:
-				if vaa.ChainID(r.ChainId) != vaa.ChainIDTerra {
+				if vaa.ChainID(r.ChainId) != e.chainID {
 					panic("invalid chain ID")
 				}
 
@@ -214,7 +232,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 					continue
 				}
 
-				msgs := EventsToMessagePublications(e.contract, txHash, events.Array(), logger)
+				msgs := EventsToMessagePublications(e.contract, txHash, events.Array(), logger, e.chainID, e.contractAddressKey)
 				for _, msg := range msgs {
 					e.msgChan <- msg
 					terraMessagesConfirmed.Inc()
@@ -229,7 +247,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				p2p.DefaultRegistry.AddErrorCount(vaa.ChainIDTerra, 1)
+				p2p.DefaultRegistry.AddErrorCount(e.chainID, 1)
 				terraConnectionErrors.WithLabelValues("channel_read_error").Inc()
 				logger.Error("error reading channel", zap.Error(err))
 				errC <- err
@@ -252,7 +270,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 				continue
 			}
 
-			msgs := EventsToMessagePublications(e.contract, txHash, events.Array(), logger)
+			msgs := EventsToMessagePublications(e.contract, txHash, events.Array(), logger, e.chainID, e.contractAddressKey)
 			for _, msg := range msgs {
 				e.msgChan <- msg
 				terraMessagesConfirmed.Inc()
@@ -266,7 +284,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 			requestURL := fmt.Sprintf("%s/wasm/contracts/%s/store?query_msg={\"guardian_set_info\":{}}", e.urlLCD, e.contract)
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 			if err != nil {
-				p2p.DefaultRegistry.AddErrorCount(vaa.ChainIDTerra, 1)
+				p2p.DefaultRegistry.AddErrorCount(e.chainID, 1)
 				terraConnectionErrors.WithLabelValues("guardian_set_req_error").Inc()
 				logger.Error("query guardian set request error", zap.Error(err))
 				errC <- err
@@ -276,7 +294,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 			msm := time.Now()
 			resp, err := client.Do(req)
 			if err != nil {
-				p2p.DefaultRegistry.AddErrorCount(vaa.ChainIDTerra, 1)
+				p2p.DefaultRegistry.AddErrorCount(e.chainID, 1)
 				logger.Error("query guardian set response error", zap.Error(err))
 				errC <- err
 				return
@@ -285,7 +303,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 			body, err := ioutil.ReadAll(resp.Body)
 			queryLatency.WithLabelValues("guardian_set_info").Observe(time.Since(msm).Seconds())
 			if err != nil {
-				p2p.DefaultRegistry.AddErrorCount(vaa.ChainIDTerra, 1)
+				p2p.DefaultRegistry.AddErrorCount(e.chainID, 1)
 				logger.Error("query guardian set error", zap.Error(err))
 				errC <- err
 				resp.Body.Close()
@@ -318,7 +336,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 	}
 }
 
-func EventsToMessagePublications(contract string, txHash string, events []gjson.Result, logger *zap.Logger) []*common.MessagePublication {
+func EventsToMessagePublications(contract string, txHash string, events []gjson.Result, logger *zap.Logger, chainID vaa.ChainID, contractAddressKey string) []*common.MessagePublication {
 	msgs := make([]*common.MessagePublication, 0, len(events))
 	for _, event := range events {
 		if !event.IsObject() {
@@ -371,7 +389,7 @@ func EventsToMessagePublications(contract string, txHash string, events []gjson.
 			mappedAttributes[string(key)] = string(value)
 		}
 
-		contractAddress, ok := mappedAttributes["contract_address"]
+		contractAddress, ok := mappedAttributes[contractAddressKey]
 		if !ok {
 			logger.Warn("terra wasm event without contract address field set", zap.String("event", event.String()))
 			continue
@@ -457,7 +475,7 @@ func EventsToMessagePublications(contract string, txHash string, events []gjson.
 			Timestamp:        time.Unix(blockTimeInt, 0),
 			Nonce:            uint32(nonceInt),
 			Sequence:         sequenceInt,
-			EmitterChain:     vaa.ChainIDTerra,
+			EmitterChain:     chainID,
 			EmitterAddress:   senderAddress,
 			Payload:          payloadValue,
 			ConsistencyLevel: 0, // Instant finality
