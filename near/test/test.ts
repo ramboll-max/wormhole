@@ -473,6 +473,8 @@ async function test() {
 
   console.log("tname: " + tname);
 
+  console.log("get_original_asset: " + await tokenUseContract.account.viewFunction(config.tokenAccount, "get_original_asset", { token: tname }));
+
   seq = seq + 1;
 
   if (!fastTest) {
