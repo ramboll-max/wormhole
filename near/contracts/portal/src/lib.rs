@@ -124,7 +124,8 @@ pub struct Portal {
     hash_map: LookupMap<Vec<u8>, String>,
     tokens: LookupMap<Vec<u8>, TokenData>,
     token_map: LookupMap<u32, Vec<u8>>,
-    last_asset: u32
+    last_asset: u32,
+    upgrade_hash: Vec<u8>
 }
 
 impl Default for Portal {
@@ -139,7 +140,8 @@ impl Default for Portal {
             hash_map: LookupMap::new(b"h".to_vec()),
             tokens: LookupMap::new(b"t".to_vec()),
             token_map: LookupMap::new(b"m".to_vec()),
-            last_asset: 0
+            last_asset: 0,
+            upgrade_hash: b"".to_vec()
         }
     }
 }
@@ -175,7 +177,14 @@ fn vaa_upgrade_contract(storage: &mut Portal, vaa: state::ParsedVAA) {
         env::panic_str("InvalidContractUpgradeChain");
     }
 
-    env::panic_str("ContractUpgradesNotImplemented");
+    let uh = data.get_bytes32(0);
+    env::log_str(&format!(
+        "portal/{}#{}: vaa_update_contract: {}",
+        file!(),
+        line!(),
+        hex::encode(&uh)
+    ));
+    storage.upgrade_hash = uh.to_vec();
 }
 
 fn vaa_governance(storage: &mut Portal, vaa: state::ParsedVAA, gov_idx: u32) {
@@ -966,5 +975,57 @@ impl Portal {
         let astr = acct.to_string();
 
         env::log_str(&format!("portal emitter: {}", hex::encode(env::sha256(&env::current_account_id().to_string().as_bytes()))));
+    }
+
+    #[private]
+    pub fn update_contract_done(
+        &mut self,
+        refund_to: near_sdk::AccountId,
+        storage_used: u64,
+        attached_deposit: u128,
+    ) {
+        let delta = (env::storage_usage() as i128 - storage_used as i128)
+            * env::storage_byte_cost() as i128;
+        let refund = attached_deposit as i128 - delta;
+        if refund > 0 {
+            env::log_str(&format!(
+                "portal/{}#{}: update_contract_done: refund {} to {}",
+                file!(),
+                line!(),
+                refund,
+                refund_to
+            ));
+            Promise::new(refund_to).transfer(refund as u128);
+        }
+    }
+
+    pub fn update_contract(&mut self, v: Vec<u8>) -> Promise {
+        if env::attached_deposit() == 0 {
+            env::panic_str("attach some cash");
+        }
+        
+        let s = env::sha256(&v);
+
+        env::log_str(&format!(
+            "portal/{}#{}: update_contract: {}",
+            file!(),
+            line!(),
+            hex::encode(&s)
+        ));
+
+        if s.to_vec() != self.upgrade_hash {
+            if env::attached_deposit() > 0 {
+                Promise::new(env::predecessor_account_id()).transfer(env::attached_deposit());
+            }
+            env::panic_str("invalidUpgradeContract");
+        }
+
+        Promise::new(env::current_account_id())
+            .deploy_contract(v)
+            .then(Self::ext(env::current_account_id()).update_contract_done(
+                env::predecessor_account_id(),
+                env::storage_usage(),
+                env::attached_deposit(),
+            ))
     }
 }

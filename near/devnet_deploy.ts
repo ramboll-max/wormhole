@@ -65,6 +65,15 @@ async function initNear() {
     new BN(10).pow(new BN(27))
   );
 
+  console.log("setting key for new wormhole contract");
+  keyStore.setKey(config.networkId, config.wormholeAccount, masterKey);
+
+  console.log("deleting the master key from the wormhole contract");
+  await wormholeAccount.deleteKey(masterKey.getPublicKey());
+
+//  console.log("redeploying wormhole contract");
+//  await wormholeAccount.deployContract(wormholeContract);
+
   console.log("Deploying token contract: " + config.tokenAccount);
   let tokenAccount = await masterAccount.createAndDeployContract(
     config.tokenAccount,
@@ -73,7 +82,11 @@ async function initNear() {
     new BN(10).pow(new BN(27))
   );
 
-  console.log("Deploying test contract: " + config.testAccount);
+  console.log("setting key for  token contract");
+  keyStore.setKey(config.networkId, config.tokenAccount, masterKey);
+
+  console.log("deleting the master key from the token contract");
+  await tokenAccount.deleteKey(masterKey.getPublicKey());
 
   let testAccount = await masterAccount.createAndDeployContract(
     config.testAccount,

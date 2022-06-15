@@ -38,14 +38,16 @@ pub struct WormholeEvent {
     nonce: u32,
     emitter: String,
     seq: u64,
-    block: u64
+    block: u64,
 }
 
 impl WormholeEvent {
     fn to_json_string(&self) -> String {
         // Events cannot fail to serialize so fine to panic on error
         #[allow(clippy::redundant_closure)]
-        serde_json::to_string(self).ok().unwrap_or_else(|| env::abort())
+        serde_json::to_string(self)
+            .ok()
+            .unwrap_or_else(|| env::abort())
     }
 
     fn to_json_event_string(&self) -> String {
@@ -59,7 +61,6 @@ impl WormholeEvent {
     }
 }
 
-
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Wormhole {
@@ -70,6 +71,7 @@ pub struct Wormhole {
     guardian_set_index: i32,
     message_fee: u64,
     owner_pk: PublicKey,
+    upgrade_hash: Vec<u8>,
 }
 
 impl Default for Wormhole {
@@ -82,6 +84,7 @@ impl Default for Wormhole {
             guardian_set_expirity: 24 * 60 * 60 * 1_000_000_000, // 24 hours in nanoseconds
             message_fee: 0,
             owner_pk: env::signer_account_pk(),
+            upgrade_hash: b"".to_vec(),
         }
     }
 }
@@ -146,8 +149,20 @@ fn parse_and_verify_vaa(storage: &Wormhole, data: &[u8]) -> state::ParsedVAA {
     vaa
 }
 
-fn vaa_update_contract(_storage: &mut Wormhole, _vaa: &state::ParsedVAA, _payload: &[u8]) {
-    env::panic_str("vaa_update_contract not implemented");
+fn vaa_update_contract(storage: &mut Wormhole, _vaa: &state::ParsedVAA, data: &[u8]) {
+    let chain = data.get_u16(33);
+    if chain != CHAIN_ID_NEAR {
+        env::panic_str("InvalidContractUpgradeChain");
+    }
+
+    let uh = data.get_bytes32(0);
+    env::log_str(&format!(
+        "portal/{}#{}: vaa_update_contract: {}",
+        file!(),
+        line!(),
+        hex::encode(&uh)
+    ));
+    storage.upgrade_hash = uh.to_vec();
 }
 
 fn vaa_update_guardian_set(storage: &mut Wormhole, _vaa: &state::ParsedVAA, data: &[u8]) {
@@ -220,7 +235,12 @@ impl Wormhole {
         if self.emitters.contains_key(&s) {
             seq = self.emitters.get(&s).unwrap();
         } else {
-            env::log_str(&format!("wormhole/{}#{}: publish_message new emitter {}", file!(), line!(), &s));
+            env::log_str(&format!(
+                "wormhole/{}#{}: publish_message new emitter {}",
+                file!(),
+                line!(),
+                &s
+            ));
         }
 
         self.emitters.insert(&s, &(seq + 1));
@@ -229,7 +249,11 @@ impl Wormhole {
             (env::storage_usage() as u128 * env::storage_byte_cost()) as i128 - before as i128;
         let d = env::attached_deposit() as i128 - delta;
         if d < 0 {
-            env::log_str(&format!("wormhole/{}#{}: publish_message", file!(), line!()));
+            env::log_str(&format!(
+                "wormhole/{}#{}: publish_message",
+                file!(),
+                line!()
+            ));
             env::panic_str(&format!("InsufficientDeposit - need {} more", -d));
         }
 
@@ -259,7 +283,16 @@ impl Wormhole {
         emitter: String,
         seq: u64,
     ) -> u64 {
-        WormholeEvent {standard: "wormhole".to_string(), event: "publish".to_string(), data, nonce, emitter, seq, block: env::block_height()}.emit();
+        WormholeEvent {
+            standard: "wormhole".to_string(),
+            event: "publish".to_string(),
+            data,
+            nonce,
+            emitter,
+            seq,
+            block: env::block_height(),
+        }
+        .emit();
         seq
     }
 
@@ -333,5 +366,57 @@ impl Wormhole {
         };
         self.guardians.insert(&gset, &g);
         self.guardian_set_index = gset;
+    }
+
+    #[private]
+    pub fn update_contract_done(
+        &mut self,
+        refund_to: near_sdk::AccountId,
+        storage_used: u64,
+        attached_deposit: u128,
+    ) {
+        let delta = (env::storage_usage() as i128 - storage_used as i128)
+            * env::storage_byte_cost() as i128;
+        let refund = attached_deposit as i128 - delta;
+        if refund > 0 {
+            env::log_str(&format!(
+                "wormhole/{}#{}: update_contract_done: refund {} to {}",
+                file!(),
+                line!(),
+                refund,
+                refund_to
+            ));
+            Promise::new(refund_to).transfer(refund as u128);
+        }
+    }
+
+    pub fn update_contract(&mut self, v: Vec<u8>) -> Promise {
+        if env::attached_deposit() == 0 {
+            env::panic_str("attach some cash");
+        }
+        
+        let s = env::sha256(&v);
+
+        env::log_str(&format!(
+            "wormhole/{}#{}: update_contract: {}",
+            file!(),
+            line!(),
+            hex::encode(&s)
+        ));
+
+        if s.to_vec() != self.upgrade_hash {
+            if env::attached_deposit() > 0 {
+                Promise::new(env::predecessor_account_id()).transfer(env::attached_deposit());
+            }
+            env::panic_str("invalidUpgradeContract");
+        }
+
+        Promise::new(env::current_account_id())
+            .deploy_contract(v)
+            .then(Self::ext(env::current_account_id()).update_contract_done(
+                env::predecessor_account_id(),
+                env::storage_usage(),
+                env::attached_deposit(),
+            ))
     }
 }
