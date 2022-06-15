@@ -1,0 +1,119 @@
+const jsonfile = require("jsonfile");
+const BigNumber = require("bignumber.js");
+
+const Wormhole = artifacts.require("Wormhole");
+const TokenBridge = artifacts.require("TokenBridge");
+const BridgeImplementation = artifacts.require("BridgeImplementation");
+const TokenImplementation = artifacts.require("TokenImplementation");
+const FeeToken = artifacts.require("FeeToken");
+const MockBridgeImplementation = artifacts.require("MockBridgeImplementation");
+const MockWETH9 = artifacts.require("MockWETH9");
+
+const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Implementation.json").abi
+const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/BridgeImplementation.json").abi
+// const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/TokenImplementation.json").abi
+
+const wormholeAddress = "0x098809840f2473734C6E08316F64a42c84f72ecC"
+const ethTokenBridgeAddress = "0x0fa39beE01f74B2707B0B74c64203e8D66C464A2"
+const WETHAddress = "0x863bC2710723E9Df0f035E8aDAaA72780aaCF448"
+
+module.exports = async function (callback) {
+    try {
+        const accounts = await web3.eth.getAccounts();
+        const amount = "100000000000000000";
+        const fee = "10000000000000000";
+
+        const WETH = new web3.eth.Contract(MockWETH9.abi, WETHAddress);
+
+        const totalWETHSupply = await WETH.methods.totalSupply().call();
+        console.log("total WETH supply", totalWETHSupply);
+        const balanceOfTokenBridge = await WETH.methods.balanceOf(ethTokenBridgeAddress).call();
+        console.log("WETH balance of token bridge", balanceOfTokenBridge);
+
+
+
+        const tokenBridge = new web3.eth.Contract(BridgeImplementationFullABI, ethTokenBridgeAddress);
+
+        // deposit
+        const result = await tokenBridge.methods.wrapAndTransferETH(
+            "2",
+            "0x00000000000000000000000071e92Dd01Db6baAd6a6C964E4CDDE29E252e4b93",
+            fee,
+            "7"
+        ).send({
+            value: amount,
+            from: accounts[0],
+            gasLimit: 2000000,
+        });
+
+        // console.log(result);
+
+        // tx hash
+        console.log("tx hash", result.transactionHash);
+        // block hash
+        console.log("block hash", result.blockHash);
+        // block num
+        const blockNum = result.blockNumber;
+        console.log("block num", blockNum);
+
+        const totalWETHSupplyAfter = await WETH.methods.totalSupply().call();
+        console.log("total WETH supply (New)", totalWETHSupplyAfter);
+        const balanceOfTokenBridgeAfter = await WETH.methods.balanceOf(ethTokenBridgeAddress).call();
+        console.log("WETH balance of token bridge (New)", balanceOfTokenBridgeAfter);
+
+        // check transfer log
+        const wormhole = new web3.eth.Contract(WormholeImplementationFullABI, wormholeAddress);
+        const log = (await wormhole.getPastEvents('LogMessagePublished', {
+            fromBlock: blockNum
+        }))[0].returnValues
+
+        // console.log(log)
+
+        // sender
+        console.log("sender", log.sender);
+
+        // sequence
+        console.log("sequence", log.sequence);
+
+        // nonce
+        console.log("nonce", log.nonce);
+
+        // payload
+        // console.log("payload", log.payload);
+        // assert.equal(log.payload.length - 2, 266);
+
+        // payload id
+        console.log("payload id", log.payload.substr(2, 2));
+        // assert.equal(log.payload.substr(2, 2), "01");
+
+        // amount
+        console.log("amount", log.payload.substr(4, 64));
+        // assert.equal(log.payload.substr(4, 64), web3.eth.abi.encodeParameter("uint256", new BigNumber(amount).div(1e10).toString()).substring(2));
+
+        // token
+        console.log("token", log.payload.substr(68, 64));
+        // assert.equal(log.payload.substr(68, 64), web3.eth.abi.encodeParameter("address", WETH).substring(2));
+
+        // chain id
+        console.log("chain id", log.payload.substr(132, 4));
+        // assert.equal(log.payload.substr(132, 4), web3.eth.abi.encodeParameter("uint16", testChainId).substring(2 + 64 - 4))
+
+        // recipient
+        console.log("recipient", log.payload.substr(136, 64));
+        // assert.equal(log.payload.substr(136, 64), "000000000000000000000000b7a2211e8165943192ad04f5dd21bedc29ff003e");
+
+        // to chain id
+        console.log("recipient chain id", log.payload.substr(200, 4));
+        // assert.equal(log.payload.substr(200, 4), web3.eth.abi.encodeParameter("uint16", 10).substring(2 + 64 - 4))
+
+        // fee
+        console.log("fee", log.payload.substr(204, 64));
+        // assert.equal(log.payload.substr(204, 64), web3.eth.abi.encodeParameter("uint256", new BigNumber(fee).div(1e10).toString()).substring(2))
+
+
+        callback();
+    }
+    catch (e) {
+        callback(e);
+    }
+}

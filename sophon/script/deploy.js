@@ -1,12 +1,10 @@
 import 'dotenv/config'
-import { LCDClient, MnemonicKey } from "@terra-money/terra.js";
-import {
-  MsgInstantiateContract,
-  MsgStoreCode,
-} from "@terra-money/terra.js";
 import { readFileSync, readdirSync } from "fs";
 import { Bech32, toHex } from "@cosmjs/encoding";
+import { calculateFee, GasPrice } from "@cosmjs/stargate";
 import { zeroPad } from "ethers/lib/utils.js";
+import { SigningCosmWasmClient, Secp256k1HdWallet } from "cosmwasm";
+
 
 /*
   NOTE: Only append to this array: keeping the ordering is crucial, as the
@@ -15,13 +13,9 @@ import { zeroPad } from "ethers/lib/utils.js";
 */
 const artifacts = [
   "wormhole.wasm",
-  "token_bridge_terra.wasm",
+  "token_bridge_sophon.wasm",
   "cw20_wrapped.wasm",
-  "cw20_base.wasm",
-  "nft_bridge.wasm",
-  "cw721_wrapped.wasm",
-  "cw721_base.wasm",
-  "mock_bridge_integration.wasm",
+  "cw20_base.wasm"
 ];
 
 /* Check that the artifact folder contains all the wasm files we expect and nothing else */
@@ -62,19 +56,16 @@ if (unexpected_artifacts.length) {
 /* Set up terra client & wallet */
 const lcdURL = process.env.LCD_URL;
 const chainID = process.env.CHAIN_ID;
-const terra = new LCDClient({
-  URL: lcdURL,
-  chainID: chainID,
-});
-
 const mnemonic = process.env.MNEMONIC;
-const wallet = terra.wallet(
-  new MnemonicKey({
-    mnemonic:mnemonic,
-  })
-);
 
-await wallet.sequence();
+
+const wallet = await Secp256k1HdWallet.fromMnemonic(mnemonic, { prefix: "sop"});
+const accounts = await wallet.getAccounts();
+// const address = accounts[0].address;
+// console.log(address);
+const address = "sop1wk4manyfhfx3sgzgp8k0fjf3jmra796kllxdgs";
+const client = await SigningCosmWasmClient.connectWithSigner(lcdURL, wallet,
+    { prefix: "sop", gasPrice: GasPrice.fromString("0.025sop1zrr6f0se68v95l4zq35t2zuzecd2a6zmakx3ux")});
 
 /* Deploy artifacts */
 
@@ -83,23 +74,8 @@ for (const file of artifacts) {
   const contract_bytes = readFileSync(`../artifacts/${file}`);
   console.log(`Storing WASM: ${file} (${contract_bytes.length} bytes)`);
 
-  const store_code = new MsgStoreCode(
-    wallet.key.accAddress,
-    contract_bytes.toString("base64")
-  );
-
-  try {
-    const tx = await wallet.createAndSignTx({
-      msgs: [store_code],
-      memo: "",
-    });
-
-    const rs = await terra.tx.broadcast(tx);
-    const ci = /"code_id","value":"([^"]+)/gm.exec(rs.raw_log)[1];
-    codeIds[file] = parseInt(ci);
-  } catch (e) {
-    console.log(`${e}`);
-  }
+  const res = await client.upload(address, contract_bytes, "auto", "");
+  codeIds[file] = res.codeId;
 }
 
 console.log(codeIds);
@@ -116,6 +92,7 @@ const govChain = Number.parseInt(process.env.INIT_GOV_CHAIN_ID);
 const govAddress = process.env.INIT_GOV_ADDRESS;
 
 async function instantiate(contract, inst_msg) {
+  client.instantiate()
   var address;
   await wallet
     .createAndSignTx({
@@ -165,7 +142,7 @@ addresses["wormhole.wasm"] = await instantiate("wormhole.wasm", {
   },
 });
 
-addresses["token_bridge_terra.wasm"] = await instantiate("token_bridge_terra.wasm", {
+addresses["token_bridge_sophon.wasm"] = await instantiate("token_bridge_sophon.wasm", {
   gov_chain: govChain,
   gov_address: Buffer.from(govAddress, "hex").toString("base64"),
   wormhole_contract: addresses["wormhole.wasm"],

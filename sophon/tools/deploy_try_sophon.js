@@ -18,10 +18,6 @@ const artifacts = [
   "token_bridge_terra.wasm",
   "cw20_wrapped.wasm",
   "cw20_base.wasm",
-  "nft_bridge.wasm",
-  "cw721_wrapped.wasm",
-  "cw721_base.wasm",
-  "mock_bridge_integration.wasm",
 ];
 
 /* Check that the artifact folder contains all the wasm files we expect and nothing else */
