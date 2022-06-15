@@ -44,7 +44,7 @@ const BRIDGE_TOKEN_BINARY: &'static [u8] =
     include_bytes!("../../ft/target/wasm32-unknown-unknown/release/ft.wasm");
 
 /// Initial balance for the BridgeToken contract to cover storage and related.
-const BRIDGE_TOKEN_INIT_BALANCE: Balance = 7_200_000_000_000_000_000_000;
+const BRIDGE_TOKEN_INIT_BALANCE: Balance = 20_000_000_000_000_000_000_000;
 
 /// Gas to initialize BridgeToken contract.
 const BRIDGE_TOKEN_NEW: Gas = Gas(100_000_000_000_000);
