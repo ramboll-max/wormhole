@@ -75,9 +75,6 @@ type Processor struct {
 	devnetNumGuardians uint
 	devnetEthRPC       string
 
-	terraLCD      string
-	terraContract string
-
 	attestationEvents *reporter.AttestationEventReporter
 
 	logger *zap.Logger
@@ -113,31 +110,20 @@ func NewProcessor(
 	signedInC chan *gossipv1.SignedVAAWithQuorum,
 	gk *ecdsa.PrivateKey,
 	gst *common.GuardianSetState,
-	devnetMode bool,
-	devnetNumGuardians uint,
-	devnetEthRPC string,
-	terraLCD string,
-	terraContract string,
 	attestationEvents *reporter.AttestationEventReporter,
 	notifier *discord.DiscordNotifier,
 ) *Processor {
 
 	return &Processor{
-		lockC:              lockC,
-		setC:               setC,
-		sendC:              sendC,
-		obsvC:              obsvC,
-		signedInC:          signedInC,
-		injectC:            injectC,
-		gk:                 gk,
-		gst:                gst,
-		devnetMode:         devnetMode,
-		devnetNumGuardians: devnetNumGuardians,
-		devnetEthRPC:       devnetEthRPC,
-		db:                 db,
-
-		terraLCD:      terraLCD,
-		terraContract: terraContract,
+		lockC:     lockC,
+		setC:      setC,
+		sendC:     sendC,
+		obsvC:     obsvC,
+		signedInC: signedInC,
+		injectC:   injectC,
+		gk:        gk,
+		gst:       gst,
+		db:        db,
 
 		attestationEvents: attestationEvents,
 

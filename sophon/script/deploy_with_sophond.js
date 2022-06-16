@@ -56,9 +56,10 @@ if (unexpected_artifacts.length) {
 const node = process.env.NODE;
 const chainID = process.env.CHAIN_ID;
 const from = process.env.SOPHOND_FROM;
+const gas_prices = process.env.GAS_PRICES;
 
 const queryFlags = ` --chain-id ${chainID} --node ${node}`;
-const txFlags = ` --from ${from} ${queryFlags} --gas-prices 0.025sop1zrr6f0se68v95l4zq35t2zuzecd2a6zmakx3ux --gas auto --gas-adjustment 1.3`;
+const txFlags = ` --from ${from} ${queryFlags} --gas-prices ${gas_prices} --gas auto --gas-adjustment 1.3`;
 
 /* Deploy artifacts */
 
@@ -68,6 +69,7 @@ for (const file of artifacts) {
     const contract_bytes = readFileSync(filepath);
     console.log(`Storing WASM: ${file} (${contract_bytes.length} bytes)`);
     const uploadRes = execSync(`sophond tx wasm store ${filepath} ${txFlags} -y --output json -b block`);
+    // console.log(`${uploadRes}`);
     const codeId = /"code_id","value":"([^"]+)/gm.exec(`${uploadRes}`)[1];
     codeIds[file] = parseInt(codeId);
 }
