@@ -25,7 +25,6 @@ import (
 	"github.com/certusone/wormhole/node/pkg/reporter"
 	"github.com/certusone/wormhole/node/pkg/supervisor"
 	"github.com/certusone/wormhole/node/pkg/telemetry"
-	"github.com/certusone/wormhole/node/pkg/terra"
 	"github.com/certusone/wormhole/node/pkg/vaa"
 	"github.com/certusone/wormhole/node/pkg/version"
 	eth_common "github.com/ethereum/go-ethereum/common"
@@ -98,9 +97,9 @@ var (
 	//neonRPC      *string
 	//neonContract *string
 
-	terraWS       *string
-	terraLCD      *string
-	terraContract *string
+	//terraWS       *string
+	//terraLCD      *string
+	//terraContract *string
 
 	sophonWS       *string
 	sophonLCD      *string
@@ -202,9 +201,9 @@ func init() {
 	//neonRPC = NodeCmd.Flags().String("neonRPC", "", "Neon RPC URL")
 	//neonContract = NodeCmd.Flags().String("neonContract", "", "Neon contract address")
 
-	terraWS = NodeCmd.Flags().String("terraWS", "", "Path to terrad root for websocket connection")
-	terraLCD = NodeCmd.Flags().String("terraLCD", "", "Path to LCD service root for http calls")
-	terraContract = NodeCmd.Flags().String("terraContract", "", "Wormhole contract address on Terra blockchain")
+	//terraWS = NodeCmd.Flags().String("terraWS", "", "Path to terrad root for websocket connection")
+	//terraLCD = NodeCmd.Flags().String("terraLCD", "", "Path to LCD service root for http calls")
+	//terraContract = NodeCmd.Flags().String("terraContract", "", "Wormhole contract address on Terra blockchain")
 
 	//algorandIndexerRPC = NodeCmd.Flags().String("algorandIndexerRPC", "", "Algorand Indexer RPC URL")
 	//algorandIndexerToken = NodeCmd.Flags().String("algorandIndexerToken", "", "Algorand Indexer access token")
@@ -521,15 +520,15 @@ func runNode(cmd *cobra.Command, args []string) {
 	//	logger.Fatal("Please specify --solanaUrl")
 	//}
 
-	if *terraWS == "" {
-		logger.Fatal("Please specify --terraWS")
-	}
-	if *terraLCD == "" {
-		logger.Fatal("Please specify --terraLCD")
-	}
-	if *terraContract == "" {
-		logger.Fatal("Please specify --terraContract")
-	}
+	//if *terraWS == "" {
+	//	logger.Fatal("Please specify --terraWS")
+	//}
+	//if *terraLCD == "" {
+	//	logger.Fatal("Please specify --terraLCD")
+	//}
+	//if *terraContract == "" {
+	//	logger.Fatal("Please specify --terraContract")
+	//}
 	//if *testnetMode || *unsafeDevMode {
 	//	if *algorandIndexerRPC == "" {
 	//		logger.Fatal("Please specify --algorandIndexerRPC")
@@ -881,11 +880,11 @@ func runNode(cmd *cobra.Command, args []string) {
 		//}
 
 		// Start Terra watcher only if configured
-		logger.Info("Starting Terra watcher")
-		if err := supervisor.Run(ctx, "terrawatch",
-			terra.NewWatcher(*terraWS, *terraLCD, *terraContract, lockC, setC, chainObsvReqC[vaa.ChainIDTerra]).Run); err != nil {
-			return err
-		}
+		//logger.Info("Starting Terra watcher")
+		//if err := supervisor.Run(ctx, "terrawatch",
+		//	terra.NewWatcher(*terraWS, *terraLCD, *terraContract, lockC, setC, chainObsvReqC[vaa.ChainIDTerra]).Run); err != nil {
+		//	return err
+		//}
 
 		// Start Sophon watcher only if configured
 		logger.Info("Starting Sophon watcher")
