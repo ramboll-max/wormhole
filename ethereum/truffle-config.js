@@ -5,6 +5,13 @@ const Caver = require("caver-js");
 
 module.exports = {
   networks: {
+    priv: {
+      provider: () => new HDWalletProvider(
+          process.env.MNEMONIC,
+          `http://101.35.182.31:8545`
+      ),
+      network_id: 2117,
+    },
     development: {
       host: "127.0.0.1",
       port: 8545,
