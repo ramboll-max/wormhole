@@ -106,7 +106,7 @@ func (e *Watcher) Run(ctx context.Context) error {
 	defer c.Close()
 
 	// Subscribe to smart contract transactions
-	params := [...]string{fmt.Sprintf("tm.event='Tx' AND execute_contract.contract_address='%s'", e.contract)}
+	params := [...]string{fmt.Sprintf("tm.event='Tx' AND execute._contract_address='%s'", e.contract)}
 	command := &clientRequest{
 		JSONRPC: "2.0",
 		Method:  "subscribe",
@@ -238,7 +238,6 @@ func (e *Watcher) Run(ctx context.Context) error {
 
 			// Received a message from the blockchain
 			json := string(message)
-
 			txHashRaw := gjson.Get(json, "result.events.tx\\.hash.0")
 			if !txHashRaw.Exists() {
 				logger.Warn("sophon message does not have tx hash", zap.String("payload", json))
@@ -371,7 +370,7 @@ func EventsToMessagePublications(contract string, txHash string, events []gjson.
 			mappedAttributes[string(key)] = string(value)
 		}
 
-		contractAddress, ok := mappedAttributes["contract_address"]
+		contractAddress, ok := mappedAttributes["_contract_address"]
 		if !ok {
 			logger.Warn("sophon wasm event without contract address field set", zap.String("event", event.String()))
 			continue

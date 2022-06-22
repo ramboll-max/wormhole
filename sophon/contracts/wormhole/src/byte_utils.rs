@@ -67,7 +67,13 @@ pub fn extend_address_to_32(addr: &CanonicalAddr) -> Vec<u8> {
 }
 
 pub fn extend_address_to_32_array(addr: &CanonicalAddr) -> [u8; 32] {
-    let mut v: Vec<u8> = vec![0; 12];
+    let z = 32 - addr.len();
+    let mut v: Vec<u8> ;
+    if z > 0 {
+        v = vec![0; z];
+    } else {
+        v = Vec::new();
+    }
     v.extend(addr.as_slice());
     let mut result: [u8; 32] = [0; 32];
     result.copy_from_slice(&v);

@@ -11,6 +11,7 @@ module.exports = {
           `http://101.35.182.31:8545`
       ),
       network_id: 2117,
+      // gasPrice: 1000000007,
     },
     development: {
       host: "127.0.0.1",

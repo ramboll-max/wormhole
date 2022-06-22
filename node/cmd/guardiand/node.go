@@ -205,6 +205,10 @@ func init() {
 	//terraLCD = NodeCmd.Flags().String("terraLCD", "", "Path to LCD service root for http calls")
 	//terraContract = NodeCmd.Flags().String("terraContract", "", "Wormhole contract address on Terra blockchain")
 
+	sophonWS = NodeCmd.Flags().String("sophonWS", "", "Path to sophond root for websocket connection")
+	sophonLCD = NodeCmd.Flags().String("sophonLCD", "", "Path to sophon LCD service root for http calls")
+	sophonContract = NodeCmd.Flags().String("sophonContract", "", "Wormhole contract address on Sophon blockchain")
+
 	//algorandIndexerRPC = NodeCmd.Flags().String("algorandIndexerRPC", "", "Algorand Indexer RPC URL")
 	//algorandIndexerToken = NodeCmd.Flags().String("algorandIndexerToken", "", "Algorand Indexer access token")
 	//algorandAlgodRPC = NodeCmd.Flags().String("algorandAlgodRPC", "", "Algorand Algod RPC URL")

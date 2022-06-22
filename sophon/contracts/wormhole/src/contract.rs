@@ -76,12 +76,12 @@ use k256::elliptic_curve::sec1::ToEncodedPoint;
 
 type HumanAddr = String;
 
-// Chain ID of Terra
-const CHAIN_ID: u16 = 3;
+// Chain ID of Sophon
+const CHAIN_ID: u16 = 20001;
 
 // Lock assets fee amount and denomination
 const FEE_AMOUNT: u128 = 0;
-pub const FEE_DENOMINATION: &str = "uluna";
+pub const FEE_DENOMINATION: &str = "usop";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
@@ -335,7 +335,9 @@ fn handle_post_message(
         return ContractError::FeeTooLow.std_err();
     }
 
-    let emitter = extend_address_to_32(&deps.api.addr_canonicalize(info.sender.as_str())?);
+    let sender_canonical = deps.api.addr_canonicalize(info.sender.clone().as_str())?;
+
+    let emitter = extend_address_to_32(&sender_canonical);
     let sequence = sequence_read(deps.storage, emitter.as_slice());
     sequence_set(deps.storage, emitter.as_slice(), sequence + 1)?;
 

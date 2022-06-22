@@ -445,7 +445,7 @@ fn handle_attest_meta(
                 }),
             })?,
             funds: vec![],
-            label: String::new(),
+            label: String::from("Wormhole Wrapped Token"),
         })
     };
     wrapped_asset_seq(deps.storage).save(&asset_id, &sequence)?;
@@ -1210,14 +1210,14 @@ fn handle_initiate_transfer_token(
         .add_attribute("transfer.block_time", env.block.time.seconds().to_string()))
 }
 
-/// All ISO-4217 currency codes are 3 letters, so we can safely slice anything that is not ULUNA.
+/// All ISO-4217 currency codes are 3 letters, so we can safely slice anything that is not USOP.
 /// https://www.xe.com/iso4217.php
 fn format_native_denom_symbol(denom: &str) -> String {
-    if denom == "uluna" {
-        return "LUNA".to_string();
+    if denom == "usop" {
+        return "SOP".to_string();
     }
     // UUSD -> US -> UST
-    denom.to_uppercase()[1..3].to_string() + "T"
+    denom.to_uppercase()[1..].to_string() + ".sop"
 }
 
 fn handle_initiate_transfer_native_token(

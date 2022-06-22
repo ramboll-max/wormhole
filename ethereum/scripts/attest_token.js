@@ -1,22 +1,14 @@
 const jsonfile = require("jsonfile");
-const BigNumber = require("bignumber.js");
 
 
-const Wormhole = artifacts.require("Wormhole");
-const TokenBridge = artifacts.require("TokenBridge");
-const BridgeImplementation = artifacts.require("BridgeImplementation");
-const TokenImplementation = artifacts.require("TokenImplementation");
-const FeeToken = artifacts.require("FeeToken");
-const MockBridgeImplementation = artifacts.require("MockBridgeImplementation");
-const MockWETH9 = artifacts.require("MockWETH9");
 
 const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Implementation.json").abi
 const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/BridgeImplementation.json").abi
-// const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/TokenImplementation.json").abi
 
-const wormholeAddress = "0xEE4c5370a391b177220624DAA790778d4A9B8698"
-const ethTokenBridgeAddress = "0xFF41b429B3f0a46524A3885E9798CF01Af03DEaA"
-const TokenAddress = "0x531f740e48De14F58789d61E05c4a6A1D56aF37c"
+const wormholeAddress = process.env.WORMHOLE;
+const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
+const TokenAddress = process.env.TOKEN_ADDR;
+// const TokenAddress = process.env.WETH;
 
 module.exports = async function (callback) {
     try {

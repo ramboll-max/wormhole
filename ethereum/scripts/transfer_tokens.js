@@ -1,47 +1,55 @@
 const jsonfile = require("jsonfile");
 const BigNumber = require("bignumber.js");
 
-const Wormhole = artifacts.require("Wormhole");
-const TokenBridge = artifacts.require("TokenBridge");
-const BridgeImplementation = artifacts.require("BridgeImplementation");
-const TokenImplementation = artifacts.require("TokenImplementation");
-const FeeToken = artifacts.require("FeeToken");
-const MockBridgeImplementation = artifacts.require("MockBridgeImplementation");
-const MockWETH9 = artifacts.require("MockWETH9");
+const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Implementation.json").abi;
+const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/BridgeImplementation.json").abi;
+const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/TokenImplementation.json").abi;
+// const IERC20ABI = jsonfile.readFileSync("../build/contracts/IERC20.json").abi;
 
-const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Implementation.json").abi
-const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/BridgeImplementation.json").abi
-// const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/TokenImplementation.json").abi
-
-const wormholeAddress = "0x098809840f2473734C6E08316F64a42c84f72ecC"
-const ethTokenBridgeAddress = "0x0fa39beE01f74B2707B0B74c64203e8D66C464A2"
-const WETHAddress = "0x863bC2710723E9Df0f035E8aDAaA72780aaCF448"
+const wormholeAddress = process.env.WORMHOLE;
+const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
+const tokenAddr = process.env.TOKEN_ADDR;
+const recipientChain = "20001";
+const recipient = "0x00000000000000000000000075abbecc89ba4d18204809ecf4c93196c7df1756";
 
 module.exports = async function (callback) {
     try {
         const accounts = await web3.eth.getAccounts();
-        const amount = "100000000000000000";
-        const fee = "10000000000000000";
+        const amount = "1000000000000000000";
+        const fee = "100000000000000000";
 
-        const WETH = new web3.eth.Contract(MockWETH9.abi, WETHAddress);
+        const ERC20 = new web3.eth.Contract(TokenImplementationFullABI, tokenAddr);
 
-        const totalWETHSupply = await WETH.methods.totalSupply().call();
-        console.log("total WETH supply", totalWETHSupply);
-        const balanceOfTokenBridge = await WETH.methods.balanceOf(ethTokenBridgeAddress).call();
-        console.log("WETH balance of token bridge", balanceOfTokenBridge);
+        const approveRes = await ERC20.methods.approve(ethTokenBridgeAddress, amount).send(
+            {
+                value: 0,
+                from: accounts[0],
+                gasLimit: 2000000,
+            }
+        );
+        // console.log("approveRes", approveRes);
+        const allowance = await ERC20.methods.allowance(accounts[0], ethTokenBridgeAddress).call();
+        console.log("allowance", allowance);
+
+        const totalSupply = await ERC20.methods.totalSupply().call();
+        console.log("total supply", totalSupply);
+        const balanceOfTokenBridge = await ERC20.methods.balanceOf(ethTokenBridgeAddress).call();
+        console.log("balance of token bridge", balanceOfTokenBridge);
 
 
 
         const tokenBridge = new web3.eth.Contract(BridgeImplementationFullABI, ethTokenBridgeAddress);
-
-        // deposit
-        const result = await tokenBridge.methods.wrapAndTransferETH(
-            "2",
-            "0x00000000000000000000000071e92Dd01Db6baAd6a6C964E4CDDE29E252e4b93",
+        const nonce = Math.round(Math.random() * 10000);
+        // transfer tokens
+        const result = await tokenBridge.methods.transferTokens(
+            tokenAddr,
+            amount,
+            recipientChain,
+            recipient,
             fee,
-            "7"
+            nonce
         ).send({
-            value: amount,
+            value: 0,
             from: accounts[0],
             gasLimit: 2000000,
         });
@@ -56,10 +64,10 @@ module.exports = async function (callback) {
         const blockNum = result.blockNumber;
         console.log("block num", blockNum);
 
-        const totalWETHSupplyAfter = await WETH.methods.totalSupply().call();
-        console.log("total WETH supply (New)", totalWETHSupplyAfter);
-        const balanceOfTokenBridgeAfter = await WETH.methods.balanceOf(ethTokenBridgeAddress).call();
-        console.log("WETH balance of token bridge (New)", balanceOfTokenBridgeAfter);
+        const totalWETHSupplyAfter = await ERC20.methods.totalSupply().call();
+        console.log("total supply (New)", totalWETHSupplyAfter);
+        const balanceOfTokenBridgeAfter = await ERC20.methods.balanceOf(ethTokenBridgeAddress).call();
+        console.log("balance of token bridge (New)", balanceOfTokenBridgeAfter);
 
         // check transfer log
         const wormhole = new web3.eth.Contract(WormholeImplementationFullABI, wormholeAddress);
@@ -67,7 +75,7 @@ module.exports = async function (callback) {
             fromBlock: blockNum
         }))[0].returnValues
 
-        // console.log(log)
+        // console.log(log);
 
         // sender
         console.log("sender", log.sender);

@@ -13,15 +13,16 @@ const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/
 const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/BridgeImplementation.json").abi
 // const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/TokenImplementation.json").abi
 
-const wormholeAddress = "0x8bE28650f6752D4bc9Bfa87cdC250aAe852286d8";
-const ethTokenBridgeAddress = "0x42802649071B7e1226352af76624bB5dC7774e13";
-const WETHAddress = "0x863bC2710723E9Df0f035E8aDAaA72780aaCF448";
-const recipient = "0x000000000000000000000000d0b5a34d542023128a36536b7adc95beffe4ca53";
+const wormholeAddress = process.env.WORMHOLE;
+const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
+const WETHAddress = process.env.WETH;
+const recipient = "0x00000000000000000000000075abbecc89ba4d18204809ecf4c93196c7df1756";
+const recipientChain = "20001";
 
 module.exports = async function (callback) {
     try {
         const accounts = await web3.eth.getAccounts();
-        const amount = "100000000000000000";
+        const amount = "1000000000000000000";
         const fee = "10000000000000000";
 
         const WETH = new web3.eth.Contract(MockWETH9.abi, WETHAddress);
@@ -36,7 +37,7 @@ module.exports = async function (callback) {
         // deposit
         const nonce = Math.round(Math.random() * 10000);
         const result = await tokenBridge.methods.wrapAndTransferETH(
-            "3",
+            recipientChain,
             recipient,
             fee,
             nonce

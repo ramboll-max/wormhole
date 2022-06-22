@@ -29,6 +29,8 @@ enum ChainID {
   // Special case - Eth has two testnets. CHAIN_ID_ETHEREUM is Goerli,
   // but we also want to connect to Ropsten, so we add a separate chain.
   CHAIN_ID_ETHEREUM_ROPSTEN = 10001;
+
+  CHAIN_ID_SOPHON = 20001;
 }
 
 // MessageID is a VAA's globally unique identifier (see data availability design document).
