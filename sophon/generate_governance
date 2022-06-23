@@ -37,25 +37,19 @@ shift $((OPTIND - 1))
 [ -z "$module" ] && { echo "$usage" >&2; exit 1; }
 
 address=$(printf "%064x" "$code_id")
-TERRA_ID=3
+SOPHON_ID=20001
 GUARDIAND=guardiand
 
 case "$module" in
   bridge)
     "$GUARDIAND" template contract-upgrade \
-      --chain-id $TERRA_ID \
+      --chain-id $SOPHON_ID \
       --new-address "$address" \
       > /tmp/gov.prototxt
     ;;
   token_bridge)
     "$GUARDIAND" template token-bridge-upgrade-contract \
-      --chain-id $TERRA_ID --module "TokenBridge" \
-      --new-address "$address" \
-      > /tmp/gov.prototxt
-    ;;
-  nft_bridge)
-    "$GUARDIAND"  template token-bridge-upgrade-contract \
-      --chain-id $TERRA_ID --module "NFTBridge" \
+      --chain-id $SOPHON_ID --module "TokenBridge" \
       --new-address "$address" \
       > /tmp/gov.prototxt
     ;;

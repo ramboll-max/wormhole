@@ -64,6 +64,7 @@ use k256::{
         Signature,
         VerifyingKey,
     },
+    EncodedPoint,
 };
 use sha3::{
     Digest,
@@ -72,7 +73,6 @@ use sha3::{
 
 use generic_array::GenericArray;
 use std::convert::TryFrom;
-use k256::elliptic_curve::sec1::ToEncodedPoint;
 
 type HumanAddr = String;
 
@@ -101,7 +101,7 @@ pub fn instantiate(
         gov_address: msg.gov_address.as_slice().to_vec(),
         guardian_set_index: 0,
         guardian_set_expirity: msg.guardian_set_expirity,
-        fee: Coin::new(FEE_AMOUNT, FEE_DENOMINATION), // 0.01 Luna (or 10000 uluna) fee by default
+        fee: Coin::new(FEE_AMOUNT, FEE_DENOMINATION),
     };
     config(deps.storage).save(&state)?;
 
@@ -335,9 +335,7 @@ fn handle_post_message(
         return ContractError::FeeTooLow.std_err();
     }
 
-    let sender_canonical = deps.api.addr_canonicalize(info.sender.clone().as_str())?;
-
-    let emitter = extend_address_to_32(&sender_canonical);
+    let emitter = extend_address_to_32(&deps.api.addr_canonicalize(info.sender.as_str())?);
     let sequence = sequence_read(deps.storage, emitter.as_slice());
     sequence_set(deps.storage, emitter.as_slice(), sequence + 1)?;
 
@@ -398,7 +396,7 @@ pub fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
 fn keys_equal(a: &VerifyingKey, b: &GuardianAddress) -> bool {
     let mut hasher = Keccak256::new();
 
-    let point = if let Some(p) = Some(a.to_encoded_point(false).clone()) {
+    let point = if let Some(p) = EncodedPoint::from(a).decompress() {
         p
     } else {
         return false;

@@ -5,9 +5,9 @@
   "main": "deploy.js",
   "type": "module",
   "dependencies": {
-    "@cosmjs/crypto": "^0.28.0-rc1",
-    "@cosmjs/stargate": "^0.28.0-rc1",
-    "cosmwasm": "^1.0.3",
+    "@cosmjs/crypto": "^0.28.3",
+    "@cosmjs/stargate": "^0.28.3",
+    "cosmwasm": "^1.1.0",
     "dotenv": "^16.0.1",
     "ethers": "^5.6.8"
   }
