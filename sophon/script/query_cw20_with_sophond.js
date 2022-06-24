@@ -29,9 +29,9 @@ const tokenInfoRes = execSync(`sophond query wasm contract-state smart ${tokenAd
 console.log("token info res:", JSON.parse(`${tokenInfoRes}`));
 
 // WrappedAssetInfo (wrapped asset only)
-const wrappedAssetInfo = {
-    wrapped_asset_info:{}
-}
-json = JSON.stringify(wrappedAssetInfo);
-const wrappedAssetInfoRes = execSync(`sophond query wasm contract-state smart ${tokenAddress} '${json}' ${queryFlags} --output json`);
-console.log("wrapped asset info res:", JSON.parse(`${wrappedAssetInfoRes}`));
+// const wrappedAssetInfo = {
+//     wrapped_asset_info:{}
+// }
+// json = JSON.stringify(wrappedAssetInfo);
+// const wrappedAssetInfoRes = execSync(`sophond query wasm contract-state smart ${tokenAddress} '${json}' ${queryFlags} --output json`);
+// console.log("wrapped asset info res:", JSON.parse(`${wrappedAssetInfoRes}`));

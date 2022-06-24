@@ -7,7 +7,7 @@ const from = process.env.SOPHOND_FROM;
 const tokenBridgeAddress = process.env.TOKEN_BRIDGE_ADDRESS;
 const gas_prices = process.env.GAS_PRICES;
 const asset = process.env.TOKEN_CONTRACT_ADDR;
-const amount = "1";
+const amount = "100";
 
 const queryFlags = ` --chain-id ${chainID}  --node ${node}`;
 const txFlags = ` --from ${from} ${queryFlags} --gas-prices ${gas_prices} --gas auto --gas-adjustment 1.3`;

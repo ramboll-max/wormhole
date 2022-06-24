@@ -91,6 +91,7 @@ async function instantiate(contract, inst_msg, label) {
     const json = JSON.stringify(inst_msg);
     const instRes = execSync(`sophond tx wasm instantiate ${codeIds[contract]} '${json}' ${txFlags} --label "${label}" -y --no-admin --output json`);
     const resJson = JSON.parse(`${instRes}`);
+    // console.log(resJson);
     const address = /"_contract_address","value":"([^"]+)/gm.exec(JSON.stringify(resJson))[1];
     console.log(
         `Instantiated ${contract} at ${address} (${convert_terra_address_to_hex(

@@ -10,13 +10,13 @@ const wormholeAddress = process.env.WORMHOLE;
 const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
 const tokenAddr = process.env.TOKEN_ADDR;
 const recipientChain = "20001";
-const recipient = "0x00000000000000000000000075abbecc89ba4d18204809ecf4c93196c7df1756";
+const recipient = "0x0000000000000000000000004c8d2dc4d82c23c51df9c7c5981353854957200f";
 
 module.exports = async function (callback) {
     try {
         const accounts = await web3.eth.getAccounts();
-        const amount = "1000000000000000000";
-        const fee = "100000000000000000";
+        const amount = "100";
+        const fee = "10";
 
         const ERC20 = new web3.eth.Contract(TokenImplementationFullABI, tokenAddr);
 

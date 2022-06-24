@@ -2,6 +2,7 @@ package vaa
 
 import (
 	"crypto/ecdsa"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	nodev1 "github.com/certusone/wormhole/node/pkg/proto/node/v1"
@@ -58,7 +59,7 @@ func loadGuardianKey(sk string) (*ecdsa.PrivateKey, error) {
 }
 
 func TestCreateRegisterChainVAA_ETH(t *testing.T) {
-	wormholeAddr := "0x3B86Ae4b1e9c906ef18e3dc3c6cBFFE599A6A5E0"
+	wormholeAddr := "0x74cf01EA2Aeb6165F503C70999E71B627F6F01DE"
 	bz, err := hex.DecodeString(wormholeAddr[2:])
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
@@ -119,7 +120,7 @@ func TestCreateRegisterChainVAA_Terra(t *testing.T) {
 }
 
 func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
-	sophonAddr := "sop1hzz0s0ucrhdp6tue2lxk3c03nj6f60qy463we7lgx0wudd72ctms2gr5ym"
+	sophonAddr := "sop1ry9w6wqacljh0xt70fdadm259nhvhur6wv0f8hmp3grgdwcf4hhsla802z"
 	bz, err := sdk.GetFromBech32(sophonAddr, "sop")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
@@ -150,9 +151,28 @@ func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
 }
 
 func TestParseSophonAddrToWormhole(t *testing.T) {
-	sophonAddr := "sop1wk4manyfhfx3sgzgp8k0fjf3jmra796kllxdgs"
+	sophonAddr := "sop1fjxjm3xc9s3u280eclzesy6ns4y4wgq0fc5a9k"
 	bz, err := sdk.GetFromBech32(sophonAddr, "sop")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
 	println(hex.EncodeToString(bz))
+}
+
+func TestTmp(t *testing.T) {
+	payloadBase64 := "AgD3wDP45yoXFu1ku4XUX4PfX9dLdhsXhG8OYwwEwjuvTiEGTUNLAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABNT0NLAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+	payload, err := base64.StdEncoding.DecodeString(payloadBase64)
+	require.NoError(t, err)
+	println(hex.EncodeToString(payload))
+	bz := []byte("usop")
+	hash := common.BytesToHash(bz)
+	hash[0] = 1
+	println(hex.EncodeToString(hash[:]))
+	sophonAddr := "sop142ulu88556rgcn4z52d30x2z79w0celyrsuj3v0zf4anlvquzgfq22t8ym"
+	bz, err = sdk.GetFromBech32(sophonAddr, "sop")
+	require.NoError(t, err)
+	hash = common.BytesToHash(bz)
+	hash = common.BytesToHash([]byte(hex.EncodeToString(hash[:])))
+	hash[0] = 0
+	println(hex.EncodeToString(hash[:]))
+
 }

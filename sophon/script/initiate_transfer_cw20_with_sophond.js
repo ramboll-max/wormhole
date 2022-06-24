@@ -7,7 +7,7 @@ const from = process.env.SOPHOND_FROM;
 const tokenBridgeAddress = process.env.TOKEN_BRIDGE_ADDRESS;
 const gas_prices = process.env.GAS_PRICES;
 const asset = process.env.TOKEN_CONTRACT_ADDR;
-const amount = "1";
+const amount = "100";
 const recipient_chain = 2;
 const recipient = "000000000000000000000000011e8F7D1B292d05779d43c62EAF3e200872D1df";
 

@@ -16,7 +16,7 @@ const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Br
 const wormholeAddress = process.env.WORMHOLE;
 const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
 const WETHAddress = process.env.WETH;
-const recipient = "0x00000000000000000000000075abbecc89ba4d18204809ecf4c93196c7df1756";
+const recipient = "0x0000000000000000000000004c8d2dc4d82c23c51df9c7c5981353854957200f";
 const recipientChain = "20001";
 
 module.exports = async function (callback) {

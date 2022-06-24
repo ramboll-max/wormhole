@@ -13,13 +13,12 @@ const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/
 const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/BridgeImplementation.json").abi
 // const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/TokenImplementation.json").abi
 
-const wormholeAddress = "0x098809840f2473734C6E08316F64a42c84f72ecC"
-const ethTokenBridgeAddress = "0x0fa39beE01f74B2707B0B74c64203e8D66C464A2"
-const TokenAddress = "0xBab52a39946EA20175DEbF9E174c0963bBA85c14"
+const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
+const TokenAddress = "0x0019da61c726129972d11c4da58a7153cb9beff008baa03f63767543740ed45f"
 
 module.exports = async function (callback) {
     try {
-        const signedAttestTokenVAA = "010000000001002b61b4ec149cf200d2581583feca8af266adebbeb34e87f60b53f67bc15f3cf7006928165f2ace07dba1da6a3c24d31b272d3a530076900540cf9fab4b960a9401628de68b0000271200010000000000000000000000000fa39bee01f74b2707b0b74c64203e8d66c464a200000000000000080f02000000000000000000000000bab52a39946ea20175debf9e174c0963bba85c14000112544b4e0000000000000000000000000000000000000000000000000000000000574f524d484f4c45205465737420546f6b656e00000000000000000000000000"
+        const signedAttestTokenVAA = "0100000000010050d4c0b8e8a2217974924a4b4175e61f04b1af342b22769f43b5c2156f6dc5b573349d322969dd08b6a8db6abefc2e377ec126915717bc5c35e713a97c573f680062b45ee6000090e54e21190aed381dc7e577997e7a5bd6ed542ceecbf07a731e93df618a0686bb09adef000000000000000200020019da61c726129972d11c4da58a7153cb9beff008baa03f63767543740ed45f4e21064d434b00000000000000000000000000000000000000000000000000000000004d4f434b00000000000000000000000000000000000000000000000000000000"
         const accounts = await web3.eth.getAccounts();
         const tokenBridge = new web3.eth.Contract(BridgeImplementationFullABI, ethTokenBridgeAddress);
 
@@ -42,7 +41,7 @@ module.exports = async function (callback) {
         const blockNum = result.blockNumber;
         console.log("block num", blockNum);
 
-        const wrappedAddress = await tokenBridge.methods.wrappedAsset("0x0001", "0x000000000000000000000000" + TokenAddress.substr(2)).call();
+        const wrappedAddress = await tokenBridge.methods.wrappedAsset("0x4e21", TokenAddress).call();
         console.log("wrapped address", wrappedAddress);
         const isWrapped = await tokenBridge.methods.isWrappedAsset(wrappedAddress).call();
         console.log("is wrapped", isWrapped);
