@@ -1,11 +1,11 @@
-echo "compiling cw20-wrapped.wasm"
+echo "compiling cw20_wrapped.wasm"
 cd ./cw20-wrapped
 RUSTFLAGS='-C link-arg=-s' cargo wasm
 if [ -f "../../artifacts/cw20_wrapped.wasm" ]; then
   rm ../../artifacts/cw20_wrapped.wasm
 fi
 mv ../../target/wasm32-unknown-unknown/release/cw20_wrapped.wasm ../../artifacts
-echo "finish cw20-wrapped.wasm"
+echo "finish cw20_wrapped.wasm"
 
 echo "compiling wormhole.wasm"
 cd ../wormhole

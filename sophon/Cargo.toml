@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "contracts/cw20-wrapped",
+    "contracts/cw20-wrapped-native-bound",
     "contracts/wormhole",
     "contracts/token-bridge",
 ]
