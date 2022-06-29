@@ -1,64 +1,16 @@
-use cw20::{
-    BalanceResponse,
-    TokenInfoResponse,
-};
-use cw20_base::msg::{
-    ExecuteMsg as TokenMsg,
-    QueryMsg as TokenQuery,
-};
-use cw20_wrapped::msg::{
-    ExecuteMsg as WrappedMsg,
-    InitHook,
-    InstantiateMsg as WrappedInit,
-    QueryMsg as WrappedQuery,
-    WrappedAssetInfoResponse,
-};
 use std::{
-    cmp::{
-        max,
-        min,
-    },
     str::FromStr,
 };
-use terraswap::asset::{
-    Asset,
-    AssetInfo,
-};
-
-use wormhole::{
-    byte_utils::{
-        extend_address_to_32,
-        extend_address_to_32_array,
-        extend_string_to_32,
-        get_string_from_32,
-        ByteUtils,
-    },
-    error::ContractError,
-    msg::{
-        ExecuteMsg as WormholeExecuteMsg,
-        QueryMsg as WormholeQueryMsg,
-    },
-    state::{
-        vaa_archive_add,
-        vaa_archive_check,
-        GovernancePacket,
-        ParsedVAA,
-    },
-};
-
-#[allow(unused_imports)]
-use cosmwasm_std::entry_point;
+use std::cmp::max;
 
 use cosmwasm_std::{
-    coin,
-    to_binary,
     BankMsg,
     Binary,
     CanonicalAddr,
+    coin,
     CosmosMsg,
     Deps,
     DepsMut,
-    Empty,
     Env,
     MessageInfo,
     QueryRequest,
@@ -67,12 +19,60 @@ use cosmwasm_std::{
     StdError,
     StdResult,
     SubMsg,
+    to_binary,
     Uint128,
     WasmMsg,
     WasmQuery,
 };
+#[allow(unused_imports)]
+use cosmwasm_std::entry_point;
+use cw20::{
+    BalanceResponse,
+    TokenInfoResponse,
+};
+use cw20_base::msg::{
+    ExecuteMsg as TokenMsg,
+    QueryMsg as TokenQuery,
+};
+use terraswap::asset::{
+    Asset,
+    AssetInfo,
+};
+
+use cw20_wrapped_native_bound::{
+    bank_msg::{BankQuery, DenomMetadataResponse},
+    custom_msg::CustomQuery,
+    msg::{
+        ExecuteMsg as WrappedMsg,
+        InitHook,
+        InstantiateMsg as WrappedInit,
+        QueryMsg as WrappedQuery,
+        WrappedAssetInfoResponse,
+    },
+};
+use wormhole::{
+    byte_utils::{
+        ByteUtils,
+        extend_address_to_32,
+        extend_address_to_32_array,
+        extend_string_to_32,
+        get_string_from_32,
+    },
+    error::ContractError,
+    msg::{
+        ExecuteMsg as WormholeExecuteMsg,
+        QueryMsg as WormholeQueryMsg,
+    },
+    state::{
+        GovernancePacket,
+        ParsedVAA,
+        vaa_archive_add,
+        vaa_archive_check,
+    },
+};
 
 use crate::{
+    CHAIN_ID,
     msg::{
         ExecuteMsg,
         ExternalIdResponse,
@@ -83,29 +83,29 @@ use crate::{
         WrappedRegistryResponse,
     },
     state::{
+        Action,
+        AssetMeta,
         bridge_contracts,
         bridge_contracts_read,
         bridge_deposit,
         config,
         config_read,
+        ConfigInfo,
         is_wrapped_asset,
         is_wrapped_asset_read,
         receive_native,
-        send_native,
-        wrapped_asset,
-        wrapped_asset_read,
-        wrapped_asset_seq,
-        wrapped_asset_seq_read,
-        wrapped_transfer_tmp,
-        Action,
-        AssetMeta,
-        ConfigInfo,
         RegisterChain,
+        send_native,
         TokenBridgeMessage,
         TransferInfo,
         TransferState,
         TransferWithPayloadInfo,
         UpgradeContract,
+        wrapped_asset,
+        wrapped_asset_read,
+        wrapped_asset_seq,
+        wrapped_asset_seq_read,
+        wrapped_transfer_tmp,
     },
     token_address::{
         ContractId,
@@ -113,7 +113,6 @@ use crate::{
         TokenId,
         WrappedCW20,
     },
-    CHAIN_ID,
 };
 
 type HumanAddr = String;
@@ -220,7 +219,7 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> StdResult<Response> {
                 sender_address: payload.1,
                 payload: payload.0,
             }
-            .serialize(),
+                .serialize(),
         },
     };
 
@@ -241,7 +240,7 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> StdResult<Response> {
         .add_attribute("action", "reply_handler"))
 }
 
-fn parse_vaa(deps: Deps, block_time: u64, data: &Binary) -> StdResult<ParsedVAA> {
+fn parse_vaa(deps: Deps<CustomQuery>, block_time: u64, data: &Binary) -> StdResult<ParsedVAA> {
     let cfg = config_read(deps.storage).load()?;
     let vaa: ParsedVAA = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: cfg.wormhole_contract,
@@ -254,7 +253,7 @@ fn parse_vaa(deps: Deps, block_time: u64, data: &Binary) -> StdResult<ParsedVAA>
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut<CustomQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::RegisterAssetHook {
             chain,
@@ -309,7 +308,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     }
 }
 
-fn deposit_tokens(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+fn deposit_tokens(deps: DepsMut<CustomQuery>, _env: Env, info: MessageInfo) -> StdResult<Response> {
     for coin in info.funds {
         let deposit_key = format!("{}:{}", info.sender, coin.denom);
         bridge_deposit(deps.storage).update(
@@ -324,7 +323,7 @@ fn deposit_tokens(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Resp
 }
 
 fn withdraw_tokens(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     _env: Env,
     info: MessageInfo,
     data: AssetInfo,
@@ -356,7 +355,7 @@ fn withdraw_tokens(
 
 /// Handle wrapped asset registration messages
 fn handle_register_asset(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     _env: Env,
     info: MessageInfo,
     chain: u16,
@@ -398,7 +397,7 @@ fn handle_register_asset(
 }
 
 fn handle_attest_meta(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     env: Env,
     emitter_chain: u16,
     emitter_address: Vec<u8>,
@@ -431,21 +430,21 @@ fn handle_attest_meta(
             )))
         }
         TokenId::Contract(ContractId::ForeignToken {
-            chain_id: _,
-            foreign_address,
-        }) => Ok(foreign_address),
+                              chain_id: _,
+                              foreign_address,
+                          }) => Ok(foreign_address),
     }?;
 
     let cfg = config_read(deps.storage).load()?;
     // If a CW20 wrapped already exists and this message has a newer sequence ID
     // we allow updating the metadata. If not, we create a brand new token.
     let message = if let Ok(contract) =
-        wrapped_asset_read(deps.storage, meta.token_chain).load(token_address.as_slice())
+    wrapped_asset_read(deps.storage, meta.token_chain).load(token_address.as_slice())
     {
         // Prevent anyone from re-attesting with old VAAs.
         if sequence
             <= wrapped_asset_seq_read(deps.storage, meta.token_chain)
-                .load(token_address.as_slice())?
+            .load(token_address.as_slice())?
         {
             return Err(StdError::generic_err(
                 "this asset has already been attested",
@@ -468,7 +467,7 @@ fn handle_attest_meta(
                 symbol: get_string_from_32(&meta.symbol),
                 asset_chain: meta.token_chain,
                 asset_address: token_address.into(),
-                decimals: min(meta.decimals, 8u8),
+                decimals: meta.decimals,
                 mint: None,
                 init_hook: Some(InitHook {
                     contract_addr: env.contract.address.to_string(),
@@ -487,7 +486,7 @@ fn handle_attest_meta(
 }
 
 fn handle_create_asset_meta(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
     asset_info: AssetInfo,
@@ -504,7 +503,7 @@ fn handle_create_asset_meta(
 }
 
 fn handle_create_asset_meta_token(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
     asset_address: HumanAddr,
@@ -555,7 +554,7 @@ fn handle_create_asset_meta_token(
 }
 
 fn handle_create_asset_meta_native_token(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
     denom: String,
@@ -563,16 +562,35 @@ fn handle_create_asset_meta_native_token(
 ) -> StdResult<Response> {
     let cfg = config_read(deps.storage).load()?;
 
-    let symbol = format_native_denom_symbol(&denom);
+    // let symbol = format_native_denom_symbol(&denom);
+
+    // Call query DenomMetadata for bank module
+    let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom: denom.clone() }).into();
+    let metadata_res: DenomMetadataResponse = deps.querier.query(&metadata_req)?;
+    let display = metadata_res.metadata.display.unwrap();
+    let symbol = metadata_res.metadata.symbol.
+        unwrap_or(display.clone());
+    let mut dec:u8 = 0;
+    for u in metadata_res.metadata.denom_units {
+        if display == u.denom {
+            dec = u.exponent.unwrap_or(0);
+            break;
+        }
+    }
+
     let token_id = TokenId::Bank { denom };
     let external_id = token_id.store(deps.storage)?;
 
     let meta: AssetMeta = AssetMeta {
         token_chain: CHAIN_ID,
         token_address: external_id.clone(),
-        decimals: 6,
-        symbol: extend_string_to_32(&symbol),
-        name: extend_string_to_32(&symbol),
+        decimals: dec,
+        symbol: extend_string_to_32(
+            symbol.clone().as_str()),
+        name: extend_string_to_32(
+            metadata_res.metadata.name.
+                unwrap_or(metadata_res.metadata.base).
+                as_str()),
     };
     let token_bridge_message = TokenBridgeMessage {
         action: Action::ATTEST_META,
@@ -596,7 +614,7 @@ fn handle_create_asset_meta_native_token(
 }
 
 fn handle_complete_transfer_with_payload(
-    mut deps: DepsMut,
+    mut deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
     data: &Binary,
@@ -629,7 +647,7 @@ enum Either<A, B> {
 }
 
 fn parse_and_archive_vaa(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     env: Env,
     data: &Binary,
 ) -> StdResult<(ParsedVAA, Either<GovernancePacket, TokenBridgeMessage>)> {
@@ -653,7 +671,7 @@ fn parse_and_archive_vaa(
 }
 
 fn submit_vaa(
-    mut deps: DepsMut,
+    mut deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
     data: &Binary,
@@ -689,7 +707,7 @@ fn submit_vaa(
 }
 
 fn handle_governance_payload(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     env: Env,
     gov_packet: &GovernancePacket,
 ) -> StdResult<Response> {
@@ -712,7 +730,7 @@ fn handle_governance_payload(
     }
 }
 
-fn handle_upgrade_contract(_deps: DepsMut, env: Env, data: &Vec<u8>) -> StdResult<Response> {
+fn handle_upgrade_contract(_deps: DepsMut<CustomQuery>, env: Env, data: &Vec<u8>) -> StdResult<Response> {
     let UpgradeContract { new_contract } = UpgradeContract::deserialize(data)?;
 
     Ok(Response::new()
@@ -724,7 +742,7 @@ fn handle_upgrade_contract(_deps: DepsMut, env: Env, data: &Vec<u8>) -> StdResul
         .add_attribute("action", "contract_upgrade"))
 }
 
-fn handle_register_chain(deps: DepsMut, _env: Env, data: &Vec<u8>) -> StdResult<Response> {
+fn handle_register_chain(deps: DepsMut<CustomQuery>, _env: Env, data: &Vec<u8>) -> StdResult<Response> {
     let RegisterChain {
         chain_id,
         chain_address,
@@ -747,7 +765,7 @@ fn handle_register_chain(deps: DepsMut, _env: Env, data: &Vec<u8>) -> StdResult<
 
 #[allow(clippy::too_many_arguments)]
 fn handle_complete_transfer(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
     emitter_chain: u16,
@@ -789,7 +807,7 @@ fn handle_complete_transfer(
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::bind_instead_of_map)]
 fn handle_complete_transfer_token(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     _env: Env,
     info: MessageInfo,
     emitter_chain: u16,
@@ -853,6 +871,18 @@ fn handle_complete_transfer_token(
                 or_else(|_| Err(StdError::generic_err("Wrapped asset not deployed. To deploy, invoke CreateWrapped with the associated AssetMeta")))?;
 
             let contract_addr = contract_addr.into_string();
+
+            // undo normalization to 8 decimals
+            let token_info: TokenInfoResponse =
+                deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: contract_addr.clone(),
+                    msg: to_binary(&TokenQuery::TokenInfo {})?,
+                }))?;
+
+            let decimals = token_info.decimals;
+            let multiplier = 10u128.pow((max(decimals, 8u8) - 8u8) as u32);
+            amount = amount.checked_mul(multiplier).unwrap();
+            fee = fee.checked_mul(multiplier).unwrap();
 
             // Asset already deployed, just mint
             let mut messages = vec![CosmosMsg::Wasm(WasmMsg::Execute {
@@ -934,7 +964,7 @@ fn handle_complete_transfer_token(
 
 #[allow(clippy::too_many_arguments)]
 fn handle_complete_transfer_token_native(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     _env: Env,
     info: MessageInfo,
     emitter_chain: u16,
@@ -1013,7 +1043,7 @@ fn handle_complete_transfer_token_native(
 
 #[allow(clippy::too_many_arguments)]
 fn handle_initiate_transfer(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
     asset: Asset,
@@ -1053,7 +1083,7 @@ fn handle_initiate_transfer(
 
 #[allow(clippy::too_many_arguments)]
 fn handle_initiate_transfer_token(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
     asset: HumanAddr,
@@ -1100,7 +1130,7 @@ fn handle_initiate_transfer_token(
                 })?,
                 funds: vec![],
             }));
-            let request = QueryRequest::<Empty>::Wasm(WasmQuery::Smart {
+            let request = QueryRequest::<CustomQuery>::Wasm(WasmQuery::Smart {
                 contract_addr: asset,
                 msg: to_binary(&WrappedQuery::WrappedAssetInfo {})?,
             });
@@ -1198,11 +1228,11 @@ fn handle_initiate_transfer_token(
             let external_id = TokenId::Contract(ContractId::NativeCW20 {
                 contract_address: address_human,
             })
-            .store(deps.storage)?;
+                .store(deps.storage)?;
 
             // convert to normalized amounts before recording & posting vaa
-            amount = Uint128::new(amount.u128().checked_div(multiplier).unwrap());
-            fee = Uint128::new(fee.u128().checked_div(multiplier).unwrap());
+            // amount = Uint128::new(amount.u128().checked_div(multiplier).unwrap());
+            // fee = Uint128::new(fee.u128().checked_div(multiplier).unwrap());
 
             // Fetch current CW20 Balance pre-transfer.
             let balance: BalanceResponse =
@@ -1287,17 +1317,17 @@ fn handle_initiate_transfer_token(
         .add_attribute("transfer.block_time", env.block.time.seconds().to_string()))
 }
 
-fn format_native_denom_symbol(denom: &str) -> String {
-    if denom == "usop" {
-        return "SOP".to_string();
-    }
-    //TODO: is there better formatting to do here?
-    denom.to_uppercase()
-}
+// fn format_native_denom_symbol(denom: &str) -> String {
+//     if denom == "usop" {
+//         return "SOP".to_string();
+//     }
+//     //TODO: is there better formatting to do here?
+//     denom.to_uppercase()
+// }
 
 #[allow(clippy::too_many_arguments)]
 fn handle_initiate_transfer_native_token(
-    deps: DepsMut,
+    deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
     denom: String,
@@ -1395,7 +1425,7 @@ fn handle_initiate_transfer_native_token(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<CustomQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::WrappedRegistry { chain, address } => {
             to_binary(&query_wrapped_registry(deps, chain, address.as_slice())?)
@@ -1405,7 +1435,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_external_id(deps: Deps, external_id: Binary) -> StdResult<ExternalIdResponse> {
+fn query_external_id(deps: Deps<CustomQuery>, external_id: Binary) -> StdResult<ExternalIdResponse> {
     let external_id = ExternalTokenId::deserialize(external_id.to_array()?);
     Ok(ExternalIdResponse {
         token_id: external_id.to_token_id(deps.storage, CHAIN_ID)?,
@@ -1413,7 +1443,7 @@ fn query_external_id(deps: Deps, external_id: Binary) -> StdResult<ExternalIdRes
 }
 
 pub fn query_wrapped_registry(
-    deps: Deps,
+    deps: Deps<CustomQuery>,
     chain: u16,
     address: &[u8],
 ) -> StdResult<WrappedRegistryResponse> {
@@ -1426,7 +1456,7 @@ pub fn query_wrapped_registry(
     }
 }
 
-fn query_transfer_info(deps: Deps, env: Env, vaa: &Binary) -> StdResult<TransferInfoResponse> {
+fn query_transfer_info(deps: Deps<CustomQuery>, env: Env, vaa: &Binary) -> StdResult<TransferInfoResponse> {
     let cfg = config_read(deps.storage).load()?;
 
     let parsed = parse_vaa(deps, env.block.time.seconds(), vaa)?;

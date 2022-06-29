@@ -23,7 +23,7 @@ module.exports = async function (callback) {
     try {
         const accounts = await web3.eth.getAccounts();
         const amount = "1000000000000000000";
-        const fee = "10000000000000000";
+        const fee = "0";
 
         const WETH = new web3.eth.Contract(MockWETH9.abi, WETHAddress);
 

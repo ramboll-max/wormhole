@@ -52,7 +52,7 @@ if (unexpected_artifacts.length) {
     process.exit(1);
 }
 
-/* Set up terra client & wallet */
+/* Set up sophon client & wallet */
 const node = process.env.NODE;
 const chainID = process.env.CHAIN_ID;
 const from = process.env.SOPHOND_FROM;

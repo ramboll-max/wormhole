@@ -15,8 +15,8 @@ const recipient = "0x0000000000000000000000004c8d2dc4d82c23c51df9c7c598135385495
 module.exports = async function (callback) {
     try {
         const accounts = await web3.eth.getAccounts();
-        const amount = "100";
-        const fee = "10";
+        const amount = "10000000000";
+        const fee = "0";
 
         const ERC20 = new web3.eth.Contract(TokenImplementationFullABI, tokenAddr);
 

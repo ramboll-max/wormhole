@@ -93,7 +93,7 @@ pub fn instantiate(
     msgs.push(SubMsg::reply_on_success(
         CosmosMsg::Custom(CustomMsg::Token(TokenMsg::Issue {
             name: msg.name.clone() + " (Wormhole)",
-            symbol: Some(msg.symbol),
+            symbol: Some(msg.symbol.to_uppercase()),
             decimals: Some(msg.decimals),
             initial_supply: Some("0".to_string()),
             max_supply: Some("0".to_string()),
@@ -334,11 +334,12 @@ pub fn query_token_info(deps: Deps<CustomQuery>) -> StdResult<TokenInfoResponse>
     let denom = bind_native_asset_read(deps.storage).load()?.denom;
     let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom: denom.clone() }).into();
     let metadata_res: DenomMetadataResponse = deps.querier.query(&metadata_req)?;
+    let display = metadata_res.metadata.display.unwrap();
     let mut dec:u8 = 0;
     for u in metadata_res.metadata.denom_units {
-        let t = u.exponent.unwrap_or(0);
-        if t > 0 {
-            dec = t;
+        if display == u.denom {
+            dec = u.exponent.unwrap_or(0);
+            break;
         }
     }
     // Call query SupplyOf for bank module
@@ -346,7 +347,7 @@ pub fn query_token_info(deps: Deps<CustomQuery>) -> StdResult<TokenInfoResponse>
     let supply_res: SupplyOfResponse = deps.querier.query(&supply_req)?;
     Ok(TokenInfoResponse {
         name: metadata_res.metadata.name.unwrap_or(metadata_res.metadata.base),
-        symbol: metadata_res.metadata.symbol.unwrap_or(metadata_res.metadata.display.unwrap()),
+        symbol: metadata_res.metadata.symbol.unwrap_or(display),
         decimals: dec,
         total_supply: supply_res.amount.amount,
         // total_supply: Uint128::new(0),
