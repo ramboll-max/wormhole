@@ -15,15 +15,15 @@ const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/Tok
 
 const wrappedAssetAddress = "0xDEE3a565D2b761EdE10adDF2813a11fbb931763d"
 const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
-const signedVAA = "010000000001004ff2df6b5dc5112b513d3d0e2ada7136780c803b12f49e6472c8f8acf3f7d75702ad4f7e5c6e28cf21cbbe95533227ec36fd98d7002eeccec7e29fc523170af10062b46021000098ef4e21190aed381dc7e577997e7a5bd6ed542ceecbf07a731e93df618a0686bb09adef0000000000000003000100000000000000000000000000000000000000000000000000000000000000640019da61c726129972d11c4da58a7153cb9beff008baa03f63767543740ed45f4e21000000000000000000000000011e8f7d1b292d05779d43c62eaf3e200872d1df00020000000000000000000000000000000000000000000000000000000000000000"
+const signedVAA = "01000000000100cd9572ca33f07bdb9888c0afe24392f1bdded3f819f659ced599b85d46c7875e24b4fb7a725439f488f88ed1cfaaa3d05fe234d8ac985401151799bb62d125070062bd537b000147a04e219e28beafa966b2407bffb0d48651e94972a56e69f3c0897d9e8facbdaeb9838600000000000000010001000000000000000000000000000000000000000000000000000000174876e800000000000000000000000000a3b8f4ef8f1b981f7ff83dc7317a56dbddac83490002000000000000000000000000011e8f7d1b292d05779d43c62eaf3e200872d1df00020000000000000000000000000000000000000000000000000000000000000000"
 
 module.exports = async function (callback) {
     try {
         const accounts = await web3.eth.getAccounts();
-        const wrappedAsset = new web3.eth.Contract(TokenImplementation.abi, wrappedAssetAddress);
+        // const wrappedAsset = new web3.eth.Contract(TokenImplementation.abi, wrappedAssetAddress);
 
-        const totalSupply = await wrappedAsset.methods.totalSupply().call();
-        console.log("total supply of wrapped asset", totalSupply);
+        // const totalSupply = await wrappedAsset.methods.totalSupply().call();
+        // console.log("total supply of wrapped asset", totalSupply);
 
         const tokenBridge = new web3.eth.Contract(BridgeImplementationFullABI, ethTokenBridgeAddress);
 
@@ -38,10 +38,10 @@ module.exports = async function (callback) {
 
         console.log(result);
 
-        const totalSupplyAfter = await wrappedAsset.methods.totalSupply().call();
-        console.log("total supply of wrapped asset (NEW)", totalSupplyAfter);
-        const accountBalanceAfter =  await wrappedAsset.methods.balanceOf(accounts[0]).call();
-        console.log("account balance of wrapped asset (NEW)", accountBalanceAfter);
+        // const totalSupplyAfter = await wrappedAsset.methods.totalSupply().call();
+        // console.log("total supply of wrapped asset (NEW)", totalSupplyAfter);
+        // const accountBalanceAfter =  await wrappedAsset.methods.balanceOf(accounts[0]).call();
+        // console.log("account balance of wrapped asset (NEW)", accountBalanceAfter);
 
         callback();
     }
