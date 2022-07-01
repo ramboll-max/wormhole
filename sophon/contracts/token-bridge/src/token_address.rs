@@ -209,18 +209,6 @@ pub enum ContractId {
     },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[repr(transparent)]
-pub struct WrappedCW20 {
-    pub human_address: Addr,
-}
-
-impl WrappedCW20 {
-    pub fn into_string(self) -> String {
-        self.human_address.into_string()
-    }
-}
-
 fn hash(bytes: &[u8]) -> [u8; 32] {
     let mut hasher = Keccak256::new();
     hasher.update(bytes);

@@ -24,15 +24,17 @@ use cosmwasm_storage::{
 
 use wormhole::byte_utils::ByteUtils;
 
-use crate::token_address::{ExternalTokenId, WrappedCW20};
+use crate::token_address::{ExternalTokenId};
 
 type HumanAddr = String;
 
 pub static CONFIG_KEY: &[u8] = b"config";
 pub static TRANSFER_TMP_KEY: &[u8] = b"transfer_tmp";
 pub static WRAPPED_ASSET_KEY: &[u8] = b"wrapped_asset";
+pub static WRAPPED_ASSET_TMP_KEY: &[u8] = b"wrapped_asset_tmp";
 pub static WRAPPED_ASSET_SEQ_KEY: &[u8] = b"wrapped_seq_asset";
 pub static WRAPPED_ASSET_ADDRESS_KEY: &[u8] = b"wrapped_asset_address";
+pub static WRAPPED_ASSET_DENOM_KEY: &[u8] = b"wrapped_asset_denom";
 pub static BRIDGE_CONTRACTS: &[u8] = b"bridge_contracts";
 pub static BRIDGE_DEPOSITS: &[u8] = b"bridge_deposits";
 pub static NATIVE_COUNTER: &[u8] = b"native_counter";
@@ -47,7 +49,6 @@ pub struct ConfigInfo {
     pub gov_address: Vec<u8>,
 
     pub wormhole_contract: HumanAddr,
-    pub wrapped_asset_code_id: u64,
 }
 
 pub fn config(storage: &mut dyn Storage) -> Singleton<ConfigInfo> {
@@ -74,27 +75,53 @@ pub fn bridge_contracts_read(storage: &dyn Storage) -> ReadonlyBucket<Vec<u8>> {
     bucket_read(storage, BRIDGE_CONTRACTS)
 }
 
-pub fn wrapped_asset(storage: &mut dyn Storage, chain: u16) -> Bucket<WrappedCW20> {
+// Created at initialization and reference original asset and bridge address
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct WrappedAssetInfo {
+    pub asset_chain: u16,
+    // Asset chain id
+    pub asset_address: Vec<u8>,
+}
+
+pub fn wrapped_asset(storage: &mut dyn Storage, chain: u16) -> Bucket<WrappedAssetInfo> {
     Bucket::multilevel(storage, &[WRAPPED_ASSET_KEY, &chain.to_be_bytes()])
 }
 
-pub fn wrapped_asset_read(storage: &dyn Storage, chain: u16) -> ReadonlyBucket<WrappedCW20> {
+pub fn wrapped_asset_read(storage: &dyn Storage, chain: u16) -> ReadonlyBucket<WrappedAssetInfo> {
     ReadonlyBucket::multilevel(storage, &[WRAPPED_ASSET_KEY, &chain.to_be_bytes()])
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct WrappedAssetTemp {
+    pub chain_id: u16,
+    pub foreign_address: [u8; 32],
+}
+
+pub fn wrapped_asset_tmp(storrage: &mut dyn Storage) -> Singleton<WrappedAssetTemp> {
+    singleton(storrage, WRAPPED_ASSET_TMP_KEY)
 }
 
 pub fn wrapped_asset_seq(storage: &mut dyn Storage, chain: u16) -> Bucket<u64> {
     Bucket::multilevel(storage, &[WRAPPED_ASSET_KEY, &chain.to_be_bytes()])
 }
 
-pub fn wrapped_asset_seq_read(storage: &mut dyn Storage, chain: u16) -> ReadonlyBucket<u64> {
+pub fn wrapped_asset_seq_read(storage: &dyn Storage, chain: u16) -> ReadonlyBucket<u64> {
     ReadonlyBucket::multilevel(storage, &[WRAPPED_ASSET_KEY, &chain.to_be_bytes()])
 }
 
-pub fn is_wrapped_asset(storage: &mut dyn Storage) -> Bucket<()> {
+pub fn wrapped_asset_denom(storage: &mut dyn Storage, chain: u16) -> Bucket<String> {
+    Bucket::multilevel(storage, &[WRAPPED_ASSET_DENOM_KEY, &chain.to_be_bytes()])
+}
+
+pub fn wrapped_asset_denom_read(storage: &dyn Storage, chain: u16) -> ReadonlyBucket<String> {
+    ReadonlyBucket::multilevel(storage, &[WRAPPED_ASSET_DENOM_KEY, &chain.to_be_bytes()])
+}
+
+pub fn is_wrapped_asset(storage: &mut dyn Storage) -> Bucket<[u8;32]> {
     bucket(storage, WRAPPED_ASSET_ADDRESS_KEY)
 }
 
-pub fn is_wrapped_asset_read(storage: &dyn Storage) -> ReadonlyBucket<()> {
+pub fn is_wrapped_asset_read(storage: &dyn Storage) -> ReadonlyBucket<[u8;32]> {
     bucket_read(storage, WRAPPED_ASSET_ADDRESS_KEY)
 }
 

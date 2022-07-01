@@ -188,6 +188,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "custom-msg"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "cw-storage-plus"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -245,21 +254,6 @@ dependencies = [
  "cw-utils",
  "cw2",
  "cw20",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "cw20-wrapped"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus",
- "cw2",
- "cw20",
- "cw20-base",
  "schemars",
  "serde",
  "thiserror",
@@ -802,6 +796,7 @@ dependencies = [
  "bigint",
  "cosmwasm-std",
  "cosmwasm-storage",
+ "custom-msg",
  "cw20",
  "cw20-base",
  "cw20-wrapped-native-bound",
@@ -868,7 +863,6 @@ dependencies = [
  "cosmwasm-storage",
  "cw20",
  "cw20-base",
- "cw20-wrapped",
  "generic-array",
  "getrandom 0.2.3",
  "hex",

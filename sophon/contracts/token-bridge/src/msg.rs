@@ -13,7 +13,6 @@ use terraswap::asset::{
 };
 
 use crate::token_address::{
-    ExternalTokenId,
     TokenId,
 };
 
@@ -26,17 +25,11 @@ pub struct InstantiateMsg {
     pub gov_address: Binary,
 
     pub wormhole_contract: HumanAddr,
-    pub wrapped_asset_code_id: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    RegisterAssetHook {
-        chain: u16,
-        token_address: ExternalTokenId,
-    },
-
     DepositTokens {},
     WithdrawTokens {
         asset: AssetInfo,
@@ -89,7 +82,7 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct WrappedRegistryResponse {
-    pub address: HumanAddr,
+    pub denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

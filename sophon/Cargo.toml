@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "contracts/cw20-wrapped",
+    "contracts/custom-msg",
     "contracts/cw20-wrapped-native-bound",
     "contracts/wormhole",
     "contracts/token-bridge",

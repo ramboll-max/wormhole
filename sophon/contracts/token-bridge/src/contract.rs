@@ -3,27 +3,7 @@ use std::{
 };
 use std::cmp::max;
 
-use cosmwasm_std::{
-    BankMsg,
-    Binary,
-    CanonicalAddr,
-    coin,
-    CosmosMsg,
-    Deps,
-    DepsMut,
-    Env,
-    MessageInfo,
-    QueryRequest,
-    Reply,
-    Response,
-    StdError,
-    StdResult,
-    SubMsg,
-    to_binary,
-    Uint128,
-    WasmMsg,
-    WasmQuery,
-};
+use cosmwasm_std::{BankMsg, Binary, CanonicalAddr, coin, Coin, CosmosMsg, Deps, DepsMut, Env, Event, from_binary, MessageInfo, QueryRequest, Reply, Response, StdError, StdResult, SubMsg, to_binary, Uint128, WasmMsg, WasmQuery};
 #[allow(unused_imports)]
 use cosmwasm_std::entry_point;
 use cw20::{
@@ -39,17 +19,12 @@ use terraswap::asset::{
     AssetInfo,
 };
 
-use cw20_wrapped_native_bound::{
-    bank_msg::{BankQuery, DenomMetadataResponse},
+use custom_msg::{
+    bank_msg::{BankQuery, BankMsg as CustomBankMsg, DenomMetadataResponse},
     custom_msg::CustomQuery,
-    msg::{
-        ExecuteMsg as WrappedMsg,
-        InitHook,
-        InstantiateMsg as WrappedInit,
-        QueryMsg as WrappedQuery,
-        WrappedAssetInfoResponse,
-    },
+    token_msg::{TokenMsg as CustomTokenMsg, IssueResponse}
 };
+use custom_msg::custom_msg::CustomMsg;
 use wormhole::{
     byte_utils::{
         ByteUtils,
@@ -111,11 +86,14 @@ use crate::{
         ContractId,
         ExternalTokenId,
         TokenId,
-        WrappedCW20,
     },
 };
+use crate::state::{wrapped_asset_denom, wrapped_asset_denom_read, wrapped_asset_tmp, WrappedAssetInfo, WrappedAssetTemp};
 
 type HumanAddr = String;
+
+const ISSUE_REPLY_ID: u64 = 1;
+const TRANSFER_FROM_REPLY_ID: u64 = 2;
 
 pub enum TransferType<A> {
     WithoutPayload,
@@ -123,7 +101,7 @@ pub enum TransferType<A> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response<CustomMsg>> {
     Ok(Response::new())
 }
 
@@ -133,24 +111,63 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     // Save general wormhole info
     let state = ConfigInfo {
         gov_chain: msg.gov_chain,
         gov_address: msg.gov_address.into(),
         wormhole_contract: msg.wormhole_contract,
-        wrapped_asset_code_id: msg.wrapped_asset_code_id,
     };
     config(deps.storage).save(&state)?;
 
     Ok(Response::default())
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response<CustomMsg>> {
+    match msg.id {
+        ISSUE_REPLY_ID => handle_issue_reply(deps, env, msg),
+        TRANSFER_FROM_REPLY_ID => handle_transfer_from_reply(deps, env, msg),
+        id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
+    }
+
+}
+
+fn handle_issue_reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response<CustomMsg>> {
+    // Save wrapped asset denom
+    let sub_res = msg.result.into_result().map_err(StdError::generic_err)?;
+    if let Some(res) = sub_res.data {
+        // Query wrapped asset info
+        let wrapped_asset_temp = wrapped_asset_tmp(deps.storage).load()?;
+        // We need to ensure that this registration request was initiated by the
+        // token bridge contract. We do this by checking that the wrapped asset
+        // already has an associated sequence number, but no address entry yet.
+        // This is a necessary and sufficient condition, because having the sequence
+        // number means that [`handle_create_wrapped`] has been called, and not having
+        // an address entry yet means precisely that the callback hasn't finished
+        // yet.
+        let _ = wrapped_asset_seq_read(deps.storage, wrapped_asset_temp.chain_id)
+            .load(&wrapped_asset_temp.foreign_address.as_slice())
+            .map_err(|_| ContractError::RegistrationForbidden.std())?;
+
+        let response: IssueResponse = from_binary(&res)?;
+        let wrapped_denom = response.denom;
+        wrapped_asset_tmp(deps.storage).remove();
+        let mut bucket = wrapped_asset_denom(deps.storage, wrapped_asset_temp.chain_id);
+        bucket.save(wrapped_asset_temp.foreign_address.as_slice(), &wrapped_denom)?;
+        is_wrapped_asset(deps.storage).save(wrapped_denom.as_bytes(), &wrapped_asset_temp.foreign_address)?;
+        let event = Event::new("create_wrapped_reply")
+            .add_attribute("wrapped_denom", wrapped_denom);
+        Ok(Response::new().add_event(event))
+    } else {
+        return Err(StdError::generic_err("no denom return"))
+    }
+}
+
 // When CW20 transfers complete, we need to verify the actual amount that is being transferred out
 // of the bridge. This is to handle fee tokens where the amount expected to be transferred may be
 // less due to burns, fees, etc.
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> StdResult<Response> {
+fn handle_transfer_from_reply(deps: DepsMut, env: Env, _msg: Reply) -> StdResult<Response<CustomMsg>> {
     let cfg = config_read(deps.storage).load()?;
 
     let state = wrapped_transfer_tmp(deps.storage).load()?;
@@ -253,12 +270,8 @@ fn parse_vaa(deps: Deps<CustomQuery>, block_time: u64, data: &Binary) -> StdResu
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut<CustomQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut<CustomQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response<CustomMsg>> {
     match msg {
-        ExecuteMsg::RegisterAssetHook {
-            chain,
-            token_address,
-        } => handle_register_asset(deps, env, info, chain, token_address),
         ExecuteMsg::InitiateTransfer {
             asset,
             recipient_chain,
@@ -308,7 +321,7 @@ pub fn execute(deps: DepsMut<CustomQuery>, env: Env, info: MessageInfo, msg: Exe
     }
 }
 
-fn deposit_tokens(deps: DepsMut<CustomQuery>, _env: Env, info: MessageInfo) -> StdResult<Response> {
+fn deposit_tokens(deps: DepsMut<CustomQuery>, _env: Env, info: MessageInfo) -> StdResult<Response<CustomMsg>> {
     for coin in info.funds {
         let deposit_key = format!("{}:{}", info.sender, coin.denom);
         bridge_deposit(deps.storage).update(
@@ -327,8 +340,8 @@ fn withdraw_tokens(
     _env: Env,
     info: MessageInfo,
     data: AssetInfo,
-) -> StdResult<Response> {
-    let mut messages: Vec<CosmosMsg> = vec![];
+) -> StdResult<Response<CustomMsg>> {
+    let mut messages: Vec<CosmosMsg<CustomMsg>> = vec![];
     if let AssetInfo::NativeToken { denom } = data {
         let deposit_key = format!("{}:{}", info.sender, denom);
         let mut deposited_amount: u128 = 0;
@@ -353,57 +366,14 @@ fn withdraw_tokens(
         .add_attribute("action", "withdraw_tokens"))
 }
 
-/// Handle wrapped asset registration messages
-fn handle_register_asset(
+fn handle_create_wrapped(
     deps: DepsMut<CustomQuery>,
     _env: Env,
-    info: MessageInfo,
-    chain: u16,
-    token_address: ExternalTokenId,
-) -> StdResult<Response> {
-    // We need to ensure that this registration request was initiated by the
-    // token bridge contract. We do this by checking that the wrapped asset
-    // already has an associated sequence number, but no address entry yet.
-    // This is a necessary and sufficient condition, because having the sequence
-    // number means that [`handle_attest_meta`] has been called, and not having
-    // an address entry yet means precisely that the callback hasn't finished
-    // yet.
-
-    let _ = wrapped_asset_seq_read(deps.storage, chain)
-        .load(&token_address.serialize())
-        .map_err(|_| ContractError::RegistrationForbidden.std())?;
-
-    let mut bucket = wrapped_asset(deps.storage, chain);
-    let result = bucket.load(&token_address.serialize()).ok();
-    if result.is_some() {
-        return ContractError::AssetAlreadyRegistered.std_err();
-    }
-
-    bucket.save(
-        &token_address.serialize(),
-        &WrappedCW20 {
-            human_address: info.sender.clone(),
-        },
-    )?;
-
-    let contract_address: CanonicalAddr = deps.api.addr_canonicalize(info.sender.as_str())?;
-    is_wrapped_asset(deps.storage).save(contract_address.as_slice(), &())?;
-
-    Ok(Response::new()
-        .add_attribute("action", "register_asset")
-        .add_attribute("token_chain", format!("{:?}", chain))
-        .add_attribute("token_address", format!("{:?}", token_address))
-        .add_attribute("contract_addr", info.sender))
-}
-
-fn handle_attest_meta(
-    deps: DepsMut<CustomQuery>,
-    env: Env,
     emitter_chain: u16,
     emitter_address: Vec<u8>,
     sequence: u64,
     data: &Vec<u8>,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     let meta = AssetMeta::deserialize(data)?;
 
     let expected_contract =
@@ -418,7 +388,7 @@ fn handle_attest_meta(
         .token_address
         .to_token_id(deps.storage, emitter_chain)?;
 
-    let token_address: [u8; 32] = match token_id {
+    let (chain_id, token_address) = match token_id.clone() {
         TokenId::Bank { denom } => Err(StdError::generic_err(format!(
             "{} is native to this chain and should not be attested",
             denom
@@ -430,59 +400,60 @@ fn handle_attest_meta(
             )))
         }
         TokenId::Contract(ContractId::ForeignToken {
-                              chain_id: _,
+                              chain_id,
                               foreign_address,
-                          }) => Ok(foreign_address),
+                          }) => Ok((chain_id, foreign_address)),
     }?;
-
-    let cfg = config_read(deps.storage).load()?;
-    // If a CW20 wrapped already exists and this message has a newer sequence ID
-    // we allow updating the metadata. If not, we create a brand new token.
-    let message = if let Ok(contract) =
-    wrapped_asset_read(deps.storage, meta.token_chain).load(token_address.as_slice())
-    {
-        // Prevent anyone from re-attesting with old VAAs.
-        if sequence
-            <= wrapped_asset_seq_read(deps.storage, meta.token_chain)
-            .load(token_address.as_slice())?
-        {
-            return Err(StdError::generic_err(
+    // If a Denom wrapped already exists, return an error. If not, we create a brand new token.
+    match wrapped_asset_read(deps.storage, meta.token_chain).load(token_address.as_slice()) {
+        Ok(_) => {
+            // A asset can be attested only once.
+            Err(StdError::generic_err(
                 "this asset has already been attested",
-            ));
-        }
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: contract.into_string(),
-            msg: to_binary(&WrappedMsg::UpdateMetadata {
-                name: get_string_from_32(&meta.name),
-                symbol: get_string_from_32(&meta.symbol),
-            })?,
-            funds: vec![],
-        })
-    } else {
-        CosmosMsg::Wasm(WasmMsg::Instantiate {
-            admin: Some(env.contract.address.clone().into_string()),
-            code_id: cfg.wrapped_asset_code_id,
-            msg: to_binary(&WrappedInit {
-                name: get_string_from_32(&meta.name),
-                symbol: get_string_from_32(&meta.symbol),
+            ))
+        },
+        Err(_) => {
+            // Invoke Issue for token module
+            let name = get_string_from_32(&meta.name);
+            // save wrapped asset info
+            let mut bucket = wrapped_asset(deps.storage, meta.token_chain);
+            let result = bucket.load(token_address.as_slice()).ok();
+            if result.is_some() {
+                return ContractError::AssetAlreadyRegistered.std_err();
+            }
+
+            let data = WrappedAssetInfo {
                 asset_chain: meta.token_chain,
-                asset_address: token_address.into(),
-                decimals: meta.decimals,
-                mint: None,
-                init_hook: Some(InitHook {
-                    contract_addr: env.contract.address.to_string(),
-                    msg: to_binary(&ExecuteMsg::RegisterAssetHook {
-                        chain: meta.token_chain,
-                        token_address: meta.token_address.clone(),
-                    })?,
-                }),
-            })?,
-            funds: vec![],
-            label: "Wormhole Wrapped CW20".to_string(),
-        })
-    };
-    wrapped_asset_seq(deps.storage, meta.token_chain).save(&token_address, &sequence)?;
-    Ok(Response::new().add_message(message))
+                asset_address: meta.token_address.serialize().to_vec(),
+            };
+            bucket.save(
+                token_address.as_slice(),
+                &data.clone(),
+            )?;
+            let wrapped_name = name.clone() + " (Wormhole)";
+            let wrapped_symbol = get_string_from_32(&meta.symbol).to_uppercase();
+            let sub_msg = SubMsg::reply_on_success(
+                CosmosMsg::Custom(CustomMsg::Token(CustomTokenMsg::Issue {
+                    name: wrapped_name.clone(),
+                    symbol: Some(wrapped_symbol.clone()),
+                    decimals: Some(meta.decimals),
+                    initial_supply: Some("0".to_string()),
+                    max_supply: Some("0".to_string()),
+                    description: Some(format!("Wormhole Wrapped {}", name).to_string()),
+                })), ISSUE_REPLY_ID);
+            wrapped_asset_seq(deps.storage, meta.token_chain).save(&token_address.as_slice(), &sequence)?;
+            // Save temp wrapped asset info, and it will be removed on reply
+            wrapped_asset_tmp(deps.storage).save(&WrappedAssetTemp{ chain_id, foreign_address: token_address})?;
+            let event = Event::new("create_wrapped")
+                .add_attribute("token_chain", format!("{:?}", chain_id))
+                .add_attribute("token_address", format!("{:?}", token_address))
+                .add_attribute("wrapped_name", wrapped_name)
+                .add_attribute("wrapped_symbol", wrapped_symbol)
+                .add_attribute("wrapped_decimals", meta.decimals.to_string());
+
+            Ok(Response::new().add_submessage(sub_msg).add_event(event))
+        }
+    }
 }
 
 fn handle_create_asset_meta(
@@ -491,7 +462,7 @@ fn handle_create_asset_meta(
     info: MessageInfo,
     asset_info: AssetInfo,
     nonce: u32,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     match asset_info {
         AssetInfo::Token { contract_addr } => {
             handle_create_asset_meta_token(deps, env, info, contract_addr, nonce)
@@ -508,7 +479,7 @@ fn handle_create_asset_meta_token(
     info: MessageInfo,
     asset_address: HumanAddr,
     nonce: u32,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     let cfg = config_read(deps.storage).load()?;
 
     let request = QueryRequest::Wasm(WasmQuery::Smart {
@@ -559,11 +530,13 @@ fn handle_create_asset_meta_native_token(
     info: MessageInfo,
     denom: String,
     nonce: u32,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
+    // make sure it is not a wrapped denom
+    if let Err(_) = is_wrapped_asset_read(deps.storage).load(denom.as_bytes()) {
+        return Err(StdError::generic_err("Denom is wrapped asset"));
+    }
+
     let cfg = config_read(deps.storage).load()?;
-
-    // let symbol = format_native_denom_symbol(&denom);
-
     // Call query DenomMetadata for bank module
     let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom: denom.clone() }).into();
     let metadata_res: DenomMetadataResponse = deps.querier.query(&metadata_req)?;
@@ -619,7 +592,7 @@ fn handle_complete_transfer_with_payload(
     info: MessageInfo,
     data: &Binary,
     relayer_address: &HumanAddr,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     let (vaa, payload) = parse_and_archive_vaa(deps.branch(), env.clone(), data)?;
 
     if let Either::Right(message) = payload {
@@ -675,7 +648,7 @@ fn submit_vaa(
     env: Env,
     info: MessageInfo,
     data: &Binary,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     let (vaa, payload) = parse_and_archive_vaa(deps.branch(), env.clone(), data)?;
     match payload {
         Either::Left(governance_packet) => handle_governance_payload(deps, env, &governance_packet),
@@ -693,7 +666,7 @@ fn submit_vaa(
                     &sender,
                 )
             }
-            Action::ATTEST_META => handle_attest_meta(
+            Action::ATTEST_META => handle_create_wrapped(
                 deps,
                 env,
                 vaa.emitter_chain,
@@ -710,7 +683,7 @@ fn handle_governance_payload(
     deps: DepsMut<CustomQuery>,
     env: Env,
     gov_packet: &GovernancePacket,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     let module = get_string_from_32(&gov_packet.module);
 
     if module != "TokenBridge" {
@@ -730,7 +703,7 @@ fn handle_governance_payload(
     }
 }
 
-fn handle_upgrade_contract(_deps: DepsMut<CustomQuery>, env: Env, data: &Vec<u8>) -> StdResult<Response> {
+fn handle_upgrade_contract(_deps: DepsMut<CustomQuery>, env: Env, data: &Vec<u8>) -> StdResult<Response<CustomMsg>> {
     let UpgradeContract { new_contract } = UpgradeContract::deserialize(data)?;
 
     Ok(Response::new()
@@ -742,7 +715,7 @@ fn handle_upgrade_contract(_deps: DepsMut<CustomQuery>, env: Env, data: &Vec<u8>
         .add_attribute("action", "contract_upgrade"))
 }
 
-fn handle_register_chain(deps: DepsMut<CustomQuery>, _env: Env, data: &Vec<u8>) -> StdResult<Response> {
+fn handle_register_chain(deps: DepsMut<CustomQuery>, _env: Env, data: &Vec<u8>) -> StdResult<Response<CustomMsg>> {
     let RegisterChain {
         chain_id,
         chain_address,
@@ -773,7 +746,7 @@ fn handle_complete_transfer(
     transfer_type: TransferType<()>,
     data: &Vec<u8>,
     relayer_address: &HumanAddr,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     let transfer_info = TransferInfo::deserialize(data)?;
     let token_id = transfer_info
         .token_address
@@ -808,7 +781,7 @@ fn handle_complete_transfer(
 #[allow(clippy::bind_instead_of_map)]
 fn handle_complete_transfer_token(
     deps: DepsMut<CustomQuery>,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     emitter_chain: u16,
     emitter_address: Vec<u8>,
@@ -816,7 +789,7 @@ fn handle_complete_transfer_token(
     transfer_type: TransferType<()>,
     data: &Vec<u8>,
     relayer_address: &HumanAddr,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     let transfer_info = match transfer_type {
         TransferType::WithoutPayload => TransferInfo::deserialize(data)?,
         TransferType::WithPayload { payload: _ } => {
@@ -867,51 +840,66 @@ fn handle_complete_transfer_token(
             foreign_address,
         } => {
             // Check if this asset is already deployed
-            let contract_addr = wrapped_asset_read(deps.storage, chain_id).load(&foreign_address).
+            let wrapped_asset_info = wrapped_asset_read(deps.storage, chain_id).load(&foreign_address).
                 or_else(|_| Err(StdError::generic_err("Wrapped asset not deployed. To deploy, invoke CreateWrapped with the associated AssetMeta")))?;
 
-            let contract_addr = contract_addr.into_string();
+            let wrapped_denom = wrapped_asset_denom_read(deps.storage, chain_id)
+                .load(wrapped_asset_info.asset_address.as_slice())?;
 
             // undo normalization to 8 decimals
-            let token_info: TokenInfoResponse =
-                deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: contract_addr.clone(),
-                    msg: to_binary(&TokenQuery::TokenInfo {})?,
-                }))?;
-
-            let decimals = token_info.decimals;
+            // Call query DenomMetadata for bank module
+            let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom: wrapped_denom.clone() }).into();
+            let metadata_res: DenomMetadataResponse = deps.querier.query(&metadata_req)?;
+            let display = metadata_res.metadata.display.unwrap();
+            let mut decimals:u8 = 0;
+            for u in metadata_res.metadata.denom_units {
+                if display == u.denom {
+                    decimals = u.exponent.unwrap_or(0);
+                    break;
+                }
+            }
             let multiplier = 10u128.pow((max(decimals, 8u8) - 8u8) as u32);
             amount = amount.checked_mul(multiplier).unwrap();
             fee = fee.checked_mul(multiplier).unwrap();
 
             // Asset already deployed, just mint
-            let mut messages = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.clone(),
-                msg: to_binary(&WrappedMsg::Mint {
-                    recipient: recipient.to_string(),
-                    amount: Uint128::from(amount),
-                })?,
-                funds: vec![],
-            })];
-            if fee != 0 {
-                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: contract_addr.clone(),
-                    msg: to_binary(&WrappedMsg::Mint {
-                        recipient: relayer_address.to_string(),
-                        amount: Uint128::from(fee),
-                    })?,
-                    funds: vec![],
-                }))
+            if amount + fee == 0 {
+                return Err(StdError::generic_err("Zero amount and fee total"));
+            }
+            // Call token module to mint native token bound
+            let total_denom = (amount + fee).to_string() + &wrapped_denom.clone();
+            let mint_msg: CosmosMsg<CustomMsg> =
+                CosmosMsg::Custom(CustomMsg::Token(CustomTokenMsg::Mint { amount: total_denom }));
+            let mut messages = vec![mint_msg];
+
+            // Send wrapped token minted to recipient
+            if amount > 0{
+                messages.push(CosmosMsg::Custom(CustomMsg::Bank(CustomBankMsg::Send {
+                    from_address: Some(env.contract.address.to_string()),
+                    to_address: recipient.to_string(),
+                    amount: vec![Coin { denom: wrapped_denom.clone(), amount: Uint128::from(amount) }],
+                })));
             }
 
-            Ok(Response::new()
-                .add_messages(messages)
-                .add_attribute("action", "complete_transfer_wrapped")
-                .add_attribute("contract", contract_addr)
-                .add_attribute("recipient", recipient)
+
+            // Send wrapped fee minted to fee recipient
+            if fee > 0{
+                messages.push(CosmosMsg::Custom(CustomMsg::Bank(CustomBankMsg::Send {
+                    from_address: Some(env.contract.address.to_string()),
+                    to_address: relayer_address.to_string(),
+                    amount: vec![Coin { denom: wrapped_denom.clone(), amount: Uint128::from(fee) }],
+                })));
+            }
+
+            // emit Event
+            let event = Event::new("complete_transfer_wrapped")
+                .add_attribute("wrapped_denom", wrapped_denom)
+                .add_attribute("recipient", recipient.to_string())
                 .add_attribute("amount", amount.to_string())
-                .add_attribute("relayer", relayer_address)
-                .add_attribute("fee", fee.to_string()))
+                .add_attribute("relayer", relayer_address.to_string())
+                .add_attribute("fee", fee.to_string());
+
+            Ok(Response::new().add_messages(messages).add_event(event))
         }
         ContractId::NativeCW20 { contract_address } => {
             // note -- here the amount is the amount the recipient will receive;
@@ -930,16 +918,20 @@ fn handle_complete_transfer_token(
             amount = amount.checked_mul(multiplier).unwrap();
             fee = fee.checked_mul(multiplier).unwrap();
 
-            let mut messages = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_address.to_string(),
-                msg: to_binary(&TokenMsg::Transfer {
-                    recipient: recipient.to_string(),
-                    amount: Uint128::from(amount),
-                })?,
-                funds: vec![],
-            })];
+            let mut messages: Vec<CosmosMsg<CustomMsg>> = vec![];
 
-            if fee != 0 {
+            if amount > 0 {
+                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: contract_address.to_string(),
+                    msg: to_binary(&TokenMsg::Transfer {
+                        recipient: recipient.to_string(),
+                        amount: Uint128::from(amount),
+                    })?,
+                    funds: vec![],
+                }));
+            }
+
+            if fee > 0 {
                 messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: contract_address.to_string(),
                     msg: to_binary(&TokenMsg::Transfer {
@@ -947,17 +939,18 @@ fn handle_complete_transfer_token(
                         amount: Uint128::from(fee),
                     })?,
                     funds: vec![],
-                }))
+                }));
             }
 
-            Ok(Response::new()
-                .add_messages(messages)
-                .add_attribute("action", "complete_transfer_native")
-                .add_attribute("recipient", recipient)
+            // emit Event
+            let event = Event::new("complete_transfer_native_cw20")
                 .add_attribute("contract", contract_address)
+                .add_attribute("recipient", recipient.to_string())
                 .add_attribute("amount", amount.to_string())
-                .add_attribute("relayer", relayer_address)
-                .add_attribute("fee", fee.to_string()))
+                .add_attribute("relayer", relayer_address.to_string())
+                .add_attribute("fee", fee.to_string());
+
+            Ok(Response::new().add_messages(messages).add_event(event))
         }
     }
 }
@@ -973,7 +966,7 @@ fn handle_complete_transfer_token_native(
     transfer_type: TransferType<()>,
     data: &Vec<u8>,
     relayer_address: &HumanAddr,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     let transfer_info = match transfer_type {
         TransferType::WithoutPayload => TransferInfo::deserialize(data)?,
         TransferType::WithPayload { payload: () } => {
@@ -1019,26 +1012,31 @@ fn handle_complete_transfer_token_native(
     let external_address = ExternalTokenId::from_bank_token(&denom)?;
     receive_native(deps.storage, &external_address, Uint128::new(amount + fee))?;
 
-    let mut messages = vec![CosmosMsg::Bank(BankMsg::Send {
-        to_address: recipient.to_string(),
-        amount: vec![coin(amount, &denom)],
-    })];
+    let mut messages: Vec<CosmosMsg<CustomMsg>> = Vec::new();
 
-    if fee != 0 {
+    if amount > 0 {
+        messages.push(CosmosMsg::Bank(BankMsg::Send {
+            to_address: recipient.to_string(),
+            amount: vec![coin(amount, &denom)],
+        }));
+    }
+
+    if fee > 0 {
         messages.push(CosmosMsg::Bank(BankMsg::Send {
             to_address: relayer_address.to_string(),
             amount: vec![coin(fee, &denom)],
         }));
     }
 
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_attribute("action", "complete_transfer_terra_native")
-        .add_attribute("recipient", recipient)
+    // emit Event
+    let event = Event::new("complete_transfer_sophon_native")
         .add_attribute("denom", denom)
+        .add_attribute("recipient", recipient.to_string())
         .add_attribute("amount", amount.to_string())
-        .add_attribute("relayer", relayer_address)
-        .add_attribute("fee", fee.to_string()))
+        .add_attribute("relayer", relayer_address.to_string())
+        .add_attribute("fee", fee.to_string());
+
+    Ok(Response::new().add_messages(messages).add_event(event))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1052,7 +1050,7 @@ fn handle_initiate_transfer(
     fee: Uint128,
     transfer_type: TransferType<Vec<u8>>,
     nonce: u32,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     match asset.info {
         AssetInfo::Token { contract_addr } => handle_initiate_transfer_token(
             deps,
@@ -1066,18 +1064,36 @@ fn handle_initiate_transfer(
             transfer_type,
             nonce,
         ),
-        AssetInfo::NativeToken { ref denom } => handle_initiate_transfer_native_token(
-            deps,
-            env,
-            info,
-            denom.clone(),
-            asset.amount,
-            recipient_chain,
-            recipient,
-            fee,
-            transfer_type,
-            nonce,
-        ),
+        AssetInfo::NativeToken { denom } => {
+            // whether it is a wrapped denom
+            match is_wrapped_asset_read(deps.storage).load(denom.as_bytes()) {
+                Ok(asset_addr) => handle_initiate_transfer_wrapped_token(
+                    deps,
+                    env,
+                    info,
+                    denom.clone(),
+                    asset.amount,
+                    recipient_chain,
+                    recipient,
+                    fee,
+                    transfer_type,
+                    nonce,
+                    asset_addr
+                ),
+                Err(_) => handle_initiate_transfer_native_token(
+                    deps,
+                    env,
+                    info,
+                    denom.clone(),
+                    asset.amount,
+                    recipient_chain,
+                    recipient,
+                    fee,
+                    transfer_type,
+                    nonce,
+                )
+            }
+        },
     }
 }
 
@@ -1093,7 +1109,7 @@ fn handle_initiate_transfer_token(
     mut fee: Uint128,
     transfer_type: TransferType<Vec<u8>>,
     nonce: u32,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     if recipient_chain == CHAIN_ID {
         return ContractError::SameSourceAndTarget.std_err();
     }
@@ -1104,204 +1120,130 @@ fn handle_initiate_transfer_token(
     let asset_chain: u16;
     let asset_address: [u8; 32];
 
-    let cfg: ConfigInfo = config_read(deps.storage).load()?;
     let asset_canonical: CanonicalAddr = deps.api.addr_canonicalize(&asset)?;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
-    let mut submessages: Vec<SubMsg> = vec![];
+    let mut submessages: Vec<SubMsg<CustomMsg>> = vec![];
 
     // we'll only need this for payload 3 transfers
     let sender_address = deps.api.addr_canonicalize(&info.sender.to_string())?;
     let sender_address = extend_address_to_32_array(&sender_address);
 
-    match is_wrapped_asset_read(deps.storage).load(asset_canonical.as_slice()) {
-        Ok(_) => {
-            // If the fee is too large the user will receive nothing.
-            if fee > amount {
-                return Err(StdError::generic_err("fee greater than sent amount"));
+    // normalize amount to 8 decimals when it sent over the wormhole
+    let token_info: TokenInfoResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: asset.clone(),
+            msg: to_binary(&TokenQuery::TokenInfo {})?,
+        }))?;
+
+    let decimals = token_info.decimals;
+    let multiplier = 10u128.pow((max(decimals, 8u8) - 8u8) as u32);
+
+    // chop off dust
+    amount = Uint128::new(
+        amount
+            .u128()
+            .checked_sub(amount.u128().checked_rem(multiplier).unwrap())
+            .unwrap(),
+    );
+
+    fee = Uint128::new(
+        fee.u128()
+            .checked_sub(fee.u128().checked_rem(multiplier).unwrap())
+            .unwrap(),
+    );
+
+    // This is a regular asset, transfer its balance
+    submessages.push(SubMsg::reply_on_success(
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: asset.clone(),
+            msg: to_binary(&TokenMsg::TransferFrom {
+                owner: info.sender.to_string(),
+                recipient: env.contract.address.to_string(),
+                amount,
+            })?,
+            funds: vec![],
+        }),
+        TRANSFER_FROM_REPLY_ID,
+    ));
+
+    asset_address = extend_address_to_32_array(&asset_canonical);
+    asset_chain = CHAIN_ID;
+    let address_human = deps.api.addr_humanize(&asset_canonical)?;
+    // we store here just in case the token is transferred out before it's attested
+    let external_id = TokenId::Contract(ContractId::NativeCW20 {
+        contract_address: address_human,
+    })
+        .store(deps.storage)?;
+
+    // convert to normalized amounts before recording & posting vaa
+    // amount = Uint128::new(amount.u128().checked_div(multiplier).unwrap());
+    // fee = Uint128::new(fee.u128().checked_div(multiplier).unwrap());
+
+    // Fetch current CW20 Balance pre-transfer.
+    let balance: BalanceResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: asset.to_string(),
+            msg: to_binary(&TokenQuery::Balance {
+                address: env.contract.address.to_string(),
+            })?,
+        }))?;
+
+    // NOTE: Reentrancy protection. It is crucial that there's no
+    // ongoing transfer in progress here, otherwise we would override
+    // its state.  This could happen if the asset's TransferFrom handler
+    // sends us an InitiateTransfer message, which would be executed
+    // before the reply handler due the the depth-first semantics of
+    // message execution.  A simple protection mechanism is to require
+    // that there's no execution in progress. The reply handler takes
+    // care of clearing out this temporary storage when done.
+    assert!(wrapped_transfer_tmp(deps.storage).load().is_err());
+
+    let token_bridge_message: TokenBridgeMessage = match transfer_type {
+        TransferType::WithoutPayload => {
+            let transfer_info = TransferInfo {
+                amount: (0, amount.u128()),
+                token_address: external_id,
+                token_chain: asset_chain,
+                recipient,
+                recipient_chain,
+                fee: (0, fee.u128()),
+            };
+            TokenBridgeMessage {
+                action: Action::TRANSFER,
+                payload: transfer_info.serialize(),
             }
-
-            // This is a deployed wrapped asset, burn it
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: asset.clone(),
-                msg: to_binary(&WrappedMsg::Burn {
-                    account: info.sender.to_string(),
-                    amount,
-                })?,
-                funds: vec![],
-            }));
-            let request = QueryRequest::<CustomQuery>::Wasm(WasmQuery::Smart {
-                contract_addr: asset,
-                msg: to_binary(&WrappedQuery::WrappedAssetInfo {})?,
-            });
-            let wrapped_token_info: WrappedAssetInfoResponse = deps.querier.query(&request)?;
-            asset_chain = wrapped_token_info.asset_chain;
-            asset_address = wrapped_token_info.asset_address.to_array()?;
-
-            let external_id = ExternalTokenId::from_foreign_token(asset_chain, asset_address);
-
-            let token_bridge_message: TokenBridgeMessage = match transfer_type {
-                TransferType::WithoutPayload => {
-                    let transfer_info = TransferInfo {
-                        amount: (0, amount.u128()),
-                        token_address: external_id,
-                        token_chain: asset_chain,
-                        recipient,
-                        recipient_chain,
-                        fee: (0, fee.u128()),
-                    };
-                    TokenBridgeMessage {
-                        action: Action::TRANSFER,
-                        payload: transfer_info.serialize(),
-                    }
-                }
-                TransferType::WithPayload { payload } => {
-                    let transfer_info = TransferWithPayloadInfo {
-                        amount: (0, amount.u128()),
-                        token_address: external_id,
-                        token_chain: asset_chain,
-                        recipient,
-                        recipient_chain,
-                        sender_address,
-                        payload,
-                    };
-                    TokenBridgeMessage {
-                        action: Action::TRANSFER_WITH_PAYLOAD,
-                        payload: transfer_info.serialize(),
-                    }
-                }
-            };
-
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.wormhole_contract,
-                msg: to_binary(&WormholeExecuteMsg::PostMessage {
-                    message: Binary::from(token_bridge_message.serialize()),
-                    nonce,
-                })?,
-                // forward coins sent to this message
-                funds: info.funds.clone(),
-            }));
         }
-        Err(_) => {
-            // normalize amount to 8 decimals when it sent over the wormhole
-            let token_info: TokenInfoResponse =
-                deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: asset.clone(),
-                    msg: to_binary(&TokenQuery::TokenInfo {})?,
-                }))?;
-
-            let decimals = token_info.decimals;
-            let multiplier = 10u128.pow((max(decimals, 8u8) - 8u8) as u32);
-
-            // chop off dust
-            amount = Uint128::new(
-                amount
-                    .u128()
-                    .checked_sub(amount.u128().checked_rem(multiplier).unwrap())
-                    .unwrap(),
-            );
-
-            fee = Uint128::new(
-                fee.u128()
-                    .checked_sub(fee.u128().checked_rem(multiplier).unwrap())
-                    .unwrap(),
-            );
-
-            // This is a regular asset, transfer its balance
-            submessages.push(SubMsg::reply_on_success(
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: asset.clone(),
-                    msg: to_binary(&TokenMsg::TransferFrom {
-                        owner: info.sender.to_string(),
-                        recipient: env.contract.address.to_string(),
-                        amount,
-                    })?,
-                    funds: vec![],
-                }),
-                1,
-            ));
-
-            asset_address = extend_address_to_32_array(&asset_canonical);
-            asset_chain = CHAIN_ID;
-            let address_human = deps.api.addr_humanize(&asset_canonical)?;
-            // we store here just in case the token is transferred out before it's attested
-            let external_id = TokenId::Contract(ContractId::NativeCW20 {
-                contract_address: address_human,
-            })
-                .store(deps.storage)?;
-
-            // convert to normalized amounts before recording & posting vaa
-            // amount = Uint128::new(amount.u128().checked_div(multiplier).unwrap());
-            // fee = Uint128::new(fee.u128().checked_div(multiplier).unwrap());
-
-            // Fetch current CW20 Balance pre-transfer.
-            let balance: BalanceResponse =
-                deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: asset.to_string(),
-                    msg: to_binary(&TokenQuery::Balance {
-                        address: env.contract.address.to_string(),
-                    })?,
-                }))?;
-
-            // NOTE: Reentrancy protection. It is crucial that there's no
-            // ongoing transfer in progress here, otherwise we would override
-            // its state.  This could happen if the asset's TransferFrom handler
-            // sends us an InitiateTransfer message, which would be executed
-            // before the reply handler due the the depth-first semantics of
-            // message execution.  A simple protection mechanism is to require
-            // that there's no execution in progress. The reply handler takes
-            // care of clearing out this temporary storage when done.
-            assert!(wrapped_transfer_tmp(deps.storage).load().is_err());
-
-            let token_bridge_message: TokenBridgeMessage = match transfer_type {
-                TransferType::WithoutPayload => {
-                    let transfer_info = TransferInfo {
-                        amount: (0, amount.u128()),
-                        token_address: external_id,
-                        token_chain: asset_chain,
-                        recipient,
-                        recipient_chain,
-                        fee: (0, fee.u128()),
-                    };
-                    TokenBridgeMessage {
-                        action: Action::TRANSFER,
-                        payload: transfer_info.serialize(),
-                    }
-                }
-                TransferType::WithPayload { payload } => {
-                    let transfer_info = TransferWithPayloadInfo {
-                        amount: (0, amount.u128()),
-                        token_address: external_id,
-                        token_chain: asset_chain,
-                        recipient,
-                        recipient_chain,
-                        sender_address,
-                        payload,
-                    };
-                    TokenBridgeMessage {
-                        action: Action::TRANSFER_WITH_PAYLOAD,
-                        payload: transfer_info.serialize(),
-                    }
-                }
+        TransferType::WithPayload { payload } => {
+            let transfer_info = TransferWithPayloadInfo {
+                amount: (0, amount.u128()),
+                token_address: external_id,
+                token_chain: asset_chain,
+                recipient,
+                recipient_chain,
+                sender_address,
+                payload,
             };
-
-            let token_address = deps.api.addr_validate(&asset)?;
-
-            // Wrap up state to be captured by the submessage reply.
-            wrapped_transfer_tmp(deps.storage).save(&TransferState {
-                previous_balance: balance.balance.to_string(),
-                account: info.sender.to_string(),
-                token_address,
-                message: token_bridge_message.serialize(),
-                multiplier: Uint128::new(multiplier).to_string(),
-                nonce,
-            })?;
+            TokenBridgeMessage {
+                action: Action::TRANSFER_WITH_PAYLOAD,
+                payload: transfer_info.serialize(),
+            }
         }
     };
 
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_submessages(submessages)
+    let token_address = deps.api.addr_validate(&asset)?;
+
+    // Wrap up state to be captured by the submessage reply.
+    wrapped_transfer_tmp(deps.storage).save(&TransferState {
+        previous_balance: balance.balance.to_string(),
+        account: info.sender.to_string(),
+        token_address,
+        message: token_bridge_message.serialize(),
+        multiplier: Uint128::new(multiplier).to_string(),
+        nonce,
+    })?;
+
+    // emit Event
+    let event = Event::new("initiate_transfer_token")
         .add_attribute("transfer.token_chain", asset_chain.to_string())
         .add_attribute("transfer.token", hex::encode(asset_address))
         .add_attribute(
@@ -1314,16 +1256,121 @@ fn handle_initiate_transfer_token(
         .add_attribute("transfer.recipient", hex::encode(recipient))
         .add_attribute("transfer.amount", amount.to_string())
         .add_attribute("transfer.nonce", nonce.to_string())
-        .add_attribute("transfer.block_time", env.block.time.seconds().to_string()))
+        .add_attribute("transfer.block_time", env.block.time.seconds().to_string());
+
+    Ok(Response::new().add_submessages(submessages).add_event(event))
 }
 
-// fn format_native_denom_symbol(denom: &str) -> String {
-//     if denom == "usop" {
-//         return "SOP".to_string();
-//     }
-//     //TODO: is there better formatting to do here?
-//     denom.to_uppercase()
-// }
+#[allow(clippy::too_many_arguments)]
+fn handle_initiate_transfer_wrapped_token(
+    deps: DepsMut<CustomQuery>,
+    env: Env,
+    info: MessageInfo,
+    denom: String,
+    amount: Uint128,
+    recipient_chain: u16,
+    recipient: [u8; 32],
+    fee: Uint128,
+    transfer_type: TransferType<Vec<u8>>,
+    nonce: u32,
+    asset_address: [u8; 32],
+) -> StdResult<Response<CustomMsg>> {
+    if recipient_chain == CHAIN_ID {
+        return ContractError::SameSourceAndTarget.std_err();
+    }
+    if amount.is_zero() {
+        return ContractError::AmountTooLow.std_err();
+    }
+    // If the fee is too large the user will receive nothing.
+    if fee > amount {
+        return Err(StdError::generic_err("fee greater than sent amount"));
+    }
+
+    let deposit_key = format!("{}:{}", info.sender, denom);
+    bridge_deposit(deps.storage).update(deposit_key.as_bytes(), |current: Option<Uint128>| {
+        match current {
+            Some(v) => Ok(v.checked_sub(amount)?),
+            None => Err(StdError::generic_err("no deposit found to transfer")),
+        }
+    })?;
+
+    let cfg: ConfigInfo = config_read(deps.storage).load()?;
+    let mut messages: Vec<CosmosMsg<CustomMsg>> = vec![];
+
+    // This is a wrapped asset, burn it
+    // Call token module to burn native token bound
+    let amount_denom = amount.to_string() + &denom;
+    messages.push(
+        CosmosMsg::Custom(CustomMsg::Token(CustomTokenMsg::Burn { amount: amount_denom }))
+    );
+
+    let wrapped_asset_info = wrapped_asset_read(deps.storage, recipient_chain)
+        .load(asset_address.as_slice())?;
+    let asset_chain = wrapped_asset_info.asset_chain;
+
+    let external_id = ExternalTokenId::from_foreign_token(asset_chain, asset_address);
+
+    let token_bridge_message: TokenBridgeMessage = match transfer_type {
+        TransferType::WithoutPayload => {
+            let transfer_info = TransferInfo {
+                amount: (0, amount.u128()),
+                token_address: external_id,
+                token_chain: asset_chain,
+                recipient,
+                recipient_chain,
+                fee: (0, fee.u128()),
+            };
+            TokenBridgeMessage {
+                action: Action::TRANSFER,
+                payload: transfer_info.serialize(),
+            }
+        }
+        TransferType::WithPayload { payload } => {
+            let sender_address = deps.api.addr_canonicalize(&info.sender.to_string())?;
+            let sender_address = extend_address_to_32_array(&sender_address);
+            let transfer_info = TransferWithPayloadInfo {
+                amount: (0, amount.u128()),
+                token_address: external_id,
+                token_chain: asset_chain,
+                recipient,
+                recipient_chain,
+                sender_address,
+                payload,
+            };
+            TokenBridgeMessage {
+                action: Action::TRANSFER_WITH_PAYLOAD,
+                payload: transfer_info.serialize(),
+            }
+        }
+    };
+
+    let sender = deps.api.addr_canonicalize(info.sender.as_str())?;
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: cfg.wormhole_contract,
+        msg: to_binary(&WormholeExecuteMsg::PostMessage {
+            message: Binary::from(token_bridge_message.serialize()),
+            nonce,
+        })?,
+        // forward coins sent to this message
+        funds: info.funds.clone(),
+    }));
+
+    // emit Event
+    let event = Event::new("initiate_transfer_wrapped_token")
+        .add_attribute("transfer.token_chain", asset_chain.to_string())
+        .add_attribute("transfer.token", hex::encode(asset_address.as_slice()))
+        .add_attribute(
+            "transfer.sender",
+            hex::encode(extend_address_to_32(&sender)),
+        )
+        .add_attribute("transfer.recipient_chain", recipient_chain.to_string())
+        .add_attribute("transfer.recipient", hex::encode(recipient))
+        .add_attribute("transfer.amount", amount.to_string())
+        .add_attribute("transfer.nonce", nonce.to_string())
+        .add_attribute("transfer.block_time", env.block.time.seconds().to_string());
+
+    Ok(Response::new().add_messages(messages).add_event(event))
+}
 
 #[allow(clippy::too_many_arguments)]
 fn handle_initiate_transfer_native_token(
@@ -1337,7 +1384,7 @@ fn handle_initiate_transfer_native_token(
     fee: Uint128,
     transfer_type: TransferType<Vec<u8>>,
     nonce: u32,
-) -> StdResult<Response> {
+) -> StdResult<Response<CustomMsg>> {
     if recipient_chain == CHAIN_ID {
         return ContractError::SameSourceAndTarget.std_err();
     }
@@ -1357,7 +1404,7 @@ fn handle_initiate_transfer_native_token(
     })?;
 
     let cfg: ConfigInfo = config_read(deps.storage).load()?;
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut messages: Vec<CosmosMsg<CustomMsg>> = vec![];
 
     let asset_chain: u16 = CHAIN_ID;
     // we store here just in case the token is transferred out before it's attested
@@ -1409,8 +1456,8 @@ fn handle_initiate_transfer_native_token(
         funds: info.funds,
     }));
 
-    Ok(Response::new()
-        .add_messages(messages)
+    // emit Event
+    let event = Event::new("initiate_transfer_native_token")
         .add_attribute("transfer.token_chain", asset_chain.to_string())
         .add_attribute("transfer.token", hex::encode(asset_address.serialize()))
         .add_attribute(
@@ -1421,7 +1468,9 @@ fn handle_initiate_transfer_native_token(
         .add_attribute("transfer.recipient", hex::encode(recipient))
         .add_attribute("transfer.amount", amount.to_string())
         .add_attribute("transfer.nonce", nonce.to_string())
-        .add_attribute("transfer.block_time", env.block.time.seconds().to_string()))
+        .add_attribute("transfer.block_time", env.block.time.seconds().to_string());
+
+    Ok(Response::new().add_messages(messages).add_event(event))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -1448,9 +1497,9 @@ pub fn query_wrapped_registry(
     address: &[u8],
 ) -> StdResult<WrappedRegistryResponse> {
     // Check if this asset is already deployed
-    match wrapped_asset_read(deps.storage, chain).load(address) {
-        Ok(address) => Ok(WrappedRegistryResponse {
-            address: address.into_string(),
+    match wrapped_asset_denom_read(deps.storage, chain).load(address) {
+        Ok(wrapped_denom) => Ok(WrappedRegistryResponse {
+            denom: wrapped_denom,
         }),
         Err(_) => ContractError::AssetNotFound.std_err(),
     }
