@@ -260,21 +260,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw20-wrapped-native-bound"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus",
- "cw2",
- "cw20",
- "cw20-base",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "der"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -799,7 +784,6 @@ dependencies = [
  "custom-msg",
  "cw20",
  "cw20-base",
- "cw20-wrapped-native-bound",
  "generic-array",
  "hex",
  "k256 0.9.6",

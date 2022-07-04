@@ -25,7 +25,7 @@ const instantiateFee = calculateFee(2_500_000, gasPrice);
 const artifacts = [
   "wormhole.wasm",
   "token_bridge_sophon.wasm",
-  "cw20_wrapped_native_bound.wasm",
+  // "cw20_wrapped_native_bound.wasm",
   "cw20_base.wasm",
 ];
 
@@ -146,7 +146,7 @@ addresses["token_bridge_sophon.wasm"] = await instantiate(
     gov_chain: govChain,
     gov_address: govAddressBase64,
     wormhole_contract: addresses["wormhole.wasm"],
-    wrapped_asset_code_id: codeIds["cw20_wrapped_native_bound.wasm"],
+    // wrapped_asset_code_id: codeIds["cw20_wrapped_native_bound.wasm"],
   }
 );
 

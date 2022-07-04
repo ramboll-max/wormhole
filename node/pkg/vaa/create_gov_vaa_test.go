@@ -59,7 +59,7 @@ func loadGuardianKey(sk string) (*ecdsa.PrivateKey, error) {
 }
 
 func TestCreateRegisterChainVAA_ETH(t *testing.T) {
-	wormholeAddr := "0x74cf01EA2Aeb6165F503C70999E71B627F6F01DE"
+	wormholeAddr := "0xa42bA1AfB03612E4270cC4B6254C64A54aB6DeF4"
 	bz, err := hex.DecodeString(wormholeAddr[2:])
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
@@ -120,7 +120,7 @@ func TestCreateRegisterChainVAA_Terra(t *testing.T) {
 }
 
 func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
-	sophonAddr := "sop1ry9w6wqacljh0xt70fdadm259nhvhur6wv0f8hmp3grgdwcf4hhsla802z"
+	sophonAddr := "sop1vguuxez2h5ekltfj9gjd62fs5k4rl2zy5hfrncasykzw08rezpfsf9x6vd"
 	bz, err := sdk.GetFromBech32(sophonAddr, "sop")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
@@ -151,7 +151,7 @@ func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
 }
 
 func TestParseSophonAddrToWormhole(t *testing.T) {
-	sophonAddr := "sop1fjxjm3xc9s3u280eclzesy6ns4y4wgq0fc5a9k"
+	sophonAddr := "sop1vguuxez2h5ekltfj9gjd62fs5k4rl2zy5hfrncasykzw08rezpfsf9x6vd"
 	bz, err := sdk.GetFromBech32(sophonAddr, "sop")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)

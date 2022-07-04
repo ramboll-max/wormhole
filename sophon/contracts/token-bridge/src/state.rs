@@ -33,6 +33,7 @@ pub static TRANSFER_TMP_KEY: &[u8] = b"transfer_tmp";
 pub static WRAPPED_ASSET_KEY: &[u8] = b"wrapped_asset";
 pub static WRAPPED_ASSET_TMP_KEY: &[u8] = b"wrapped_asset_tmp";
 pub static WRAPPED_ASSET_SEQ_KEY: &[u8] = b"wrapped_seq_asset";
+pub static WRAPPED_ASSET_CHAIN_ID_KEY: &[u8] = b"wrapped_asset_chain_id";
 pub static WRAPPED_ASSET_ADDRESS_KEY: &[u8] = b"wrapped_asset_address";
 pub static WRAPPED_ASSET_DENOM_KEY: &[u8] = b"wrapped_asset_denom";
 pub static BRIDGE_CONTRACTS: &[u8] = b"bridge_contracts";
@@ -75,22 +76,6 @@ pub fn bridge_contracts_read(storage: &dyn Storage) -> ReadonlyBucket<Vec<u8>> {
     bucket_read(storage, BRIDGE_CONTRACTS)
 }
 
-// Created at initialization and reference original asset and bridge address
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WrappedAssetInfo {
-    pub asset_chain: u16,
-    // Asset chain id
-    pub asset_address: Vec<u8>,
-}
-
-pub fn wrapped_asset(storage: &mut dyn Storage, chain: u16) -> Bucket<WrappedAssetInfo> {
-    Bucket::multilevel(storage, &[WRAPPED_ASSET_KEY, &chain.to_be_bytes()])
-}
-
-pub fn wrapped_asset_read(storage: &dyn Storage, chain: u16) -> ReadonlyBucket<WrappedAssetInfo> {
-    ReadonlyBucket::multilevel(storage, &[WRAPPED_ASSET_KEY, &chain.to_be_bytes()])
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct WrappedAssetTemp {
     pub chain_id: u16,
@@ -117,11 +102,19 @@ pub fn wrapped_asset_denom_read(storage: &dyn Storage, chain: u16) -> ReadonlyBu
     ReadonlyBucket::multilevel(storage, &[WRAPPED_ASSET_DENOM_KEY, &chain.to_be_bytes()])
 }
 
-pub fn is_wrapped_asset(storage: &mut dyn Storage) -> Bucket<[u8;32]> {
+pub fn denom_wrapped_asset_chain_id(storage: &mut dyn Storage) -> Bucket<u16> {
+    bucket(storage, WRAPPED_ASSET_CHAIN_ID_KEY)
+}
+
+pub fn denom_wrapped_asset_chain_id_read(storage: &dyn Storage) -> ReadonlyBucket<u16> {
+    bucket_read(storage, WRAPPED_ASSET_CHAIN_ID_KEY)
+}
+
+pub fn denom_wrapped_asset_address(storage: &mut dyn Storage) -> Bucket<[u8;32]> {
     bucket(storage, WRAPPED_ASSET_ADDRESS_KEY)
 }
 
-pub fn is_wrapped_asset_read(storage: &dyn Storage) -> ReadonlyBucket<[u8;32]> {
+pub fn denom_wrapped_asset_address_read(storage: &dyn Storage) -> ReadonlyBucket<[u8;32]> {
     bucket_read(storage, WRAPPED_ASSET_ADDRESS_KEY)
 }
 

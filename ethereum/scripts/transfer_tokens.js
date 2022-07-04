@@ -1,10 +1,8 @@
 const jsonfile = require("jsonfile");
-const BigNumber = require("bignumber.js");
 
 const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Implementation.json").abi;
 const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/BridgeImplementation.json").abi;
 const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/TokenImplementation.json").abi;
-// const IERC20ABI = jsonfile.readFileSync("../build/contracts/IERC20.json").abi;
 
 const wormholeAddress = process.env.WORMHOLE;
 const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
@@ -15,7 +13,7 @@ const recipient = "0x0000000000000000000000004c8d2dc4d82c23c51df9c7c598135385495
 module.exports = async function (callback) {
     try {
         const accounts = await web3.eth.getAccounts();
-        const amount = "10000000000";
+        const amount = "1000000000000000000";
         const fee = "0";
 
         const ERC20 = new web3.eth.Contract(TokenImplementationFullABI, tokenAddr);

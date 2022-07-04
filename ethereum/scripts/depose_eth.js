@@ -1,17 +1,8 @@
 const jsonfile = require("jsonfile");
-const BigNumber = require("bignumber.js");
-
-const Wormhole = artifacts.require("Wormhole");
-const TokenBridge = artifacts.require("TokenBridge");
-const BridgeImplementation = artifacts.require("BridgeImplementation");
-const TokenImplementation = artifacts.require("TokenImplementation");
-const FeeToken = artifacts.require("FeeToken");
-const MockBridgeImplementation = artifacts.require("MockBridgeImplementation");
 const MockWETH9 = artifacts.require("MockWETH9");
 
 const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Implementation.json").abi
 const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/BridgeImplementation.json").abi
-// const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/TokenImplementation.json").abi
 
 const wormholeAddress = process.env.WORMHOLE;
 const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
