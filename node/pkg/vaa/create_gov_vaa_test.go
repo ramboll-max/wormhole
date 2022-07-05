@@ -2,7 +2,6 @@ package vaa
 
 import (
 	"crypto/ecdsa"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	nodev1 "github.com/certusone/wormhole/node/pkg/proto/node/v1"
@@ -59,7 +58,7 @@ func loadGuardianKey(sk string) (*ecdsa.PrivateKey, error) {
 }
 
 func TestCreateRegisterChainVAA_ETH(t *testing.T) {
-	tokenBridgeAddr := "0xC0d5e7F36F5F49E6a86650811300D3Ff92f0C476"
+	tokenBridgeAddr := "0x1F76b508706C082A808164fC974eBADb100Aa228"
 	bz, err := hex.DecodeString(tokenBridgeAddr[2:])
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
@@ -120,7 +119,7 @@ func TestCreateRegisterChainVAA_Terra(t *testing.T) {
 }
 
 func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
-	sophonTokenBridgeAddr := "sop1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquz2k54"
+	sophonTokenBridgeAddr := "sop1x8gwn06l85q0lyncy7zsde8zzdn588k2dck00a8j6lkprydcutwqum5nmx"
 	bz, err := sdk.GetFromBech32(sophonTokenBridgeAddr, "sop")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
@@ -159,20 +158,9 @@ func TestParseSophonAddrToWormhole(t *testing.T) {
 }
 
 func TestTmp(t *testing.T) {
-	payloadBase64 := "AgD3wDP45yoXFu1ku4XUX4PfX9dLdhsXhG8OYwwEwjuvTiEGTUNLAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABNT0NLAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
-	payload, err := base64.StdEncoding.DecodeString(payloadBase64)
-	require.NoError(t, err)
-	println(hex.EncodeToString(payload))
-	bz := []byte("usop")
-	hash := common.BytesToHash(bz)
-	hash[0] = 1
-	println(hex.EncodeToString(hash[:]))
-	sophonAddr := "sop142ulu88556rgcn4z52d30x2z79w0celyrsuj3v0zf4anlvquzgfq22t8ym"
-	bz, err = sdk.GetFromBech32(sophonAddr, "sop")
-	require.NoError(t, err)
-	hash = common.BytesToHash(bz)
-	hash = common.BytesToHash([]byte(hex.EncodeToString(hash[:])))
-	hash[0] = 0
-	println(hex.EncodeToString(hash[:]))
+	sopAddr := "usop"
+	h := crypto.Keccak256Hash([]byte(sopAddr))
+	h[0] = 1
+	println(hex.EncodeToString(h[:]))
 
 }

@@ -1,7 +1,4 @@
-use cosmwasm_std::{
-    Binary,
-    Uint128,
-};
+use cosmwasm_std::{Binary, Uint128};
 use schemars::JsonSchema;
 use serde::{
     Deserialize,
@@ -77,6 +74,7 @@ pub enum QueryMsg {
     WrappedRegistry { chain: u16, address: Binary },
     TransferInfo { vaa: Binary },
     ExternalId { external_id: Binary },
+    DenomWrappedAssetInfo { denom: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -101,4 +99,13 @@ pub struct TransferInfoResponse {
 #[serde(rename_all = "snake_case")]
 pub struct ExternalIdResponse {
     pub token_id: TokenId,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct DenomWrappedAssetInfoResponse {
+    pub found: u8,
+    pub is_wrapped: u8,
+    pub asset_chain: u16,       // Asset chain id
+    pub asset_address: Binary,  // Asset smart contract address in the original chain
 }

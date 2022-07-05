@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use std::cmp::max;
+use std::str::FromStr;
 
 use cosmwasm_std::{BankMsg, Binary, CanonicalAddr, coin, Coin, CosmosMsg, Deps, DepsMut, Env, Event, from_binary, MessageInfo, QueryRequest, Reply, Response, StdError, StdResult, SubMsg, to_binary, Uint128, WasmMsg, WasmQuery};
 #[allow(unused_imports)]
@@ -41,8 +41,13 @@ use wormhole::{
 };
 
 use crate::{
+    asset::{
+        Asset,
+        AssetInfo,
+    },
     CHAIN_ID,
     msg::{
+        DenomWrappedAssetInfoResponse,
         ExecuteMsg,
         ExternalIdResponse,
         InstantiateMsg,
@@ -84,10 +89,6 @@ use crate::{
         ContractId,
         ExternalTokenId,
         TokenId,
-    },
-    asset::{
-        Asset,
-        AssetInfo,
     },
 };
 
@@ -1471,7 +1472,7 @@ fn handle_initiate_transfer_native_token(
     let wormhole_fee = Uint128::new(
         fee.u128()
             .checked_sub(fee.u128().checked_rem(multiplier).unwrap())
-            .unwrap()/ multiplier,
+            .unwrap() / multiplier,
     );
 
     send_native(deps.storage, &asset_address, wormhole_amount)?;
@@ -1545,6 +1546,43 @@ pub fn query(deps: Deps<CustomQuery>, env: Env, msg: QueryMsg) -> StdResult<Bina
         }
         QueryMsg::TransferInfo { vaa } => to_binary(&query_transfer_info(deps, env, &vaa)?),
         QueryMsg::ExternalId { external_id } => to_binary(&query_external_id(deps, external_id)?),
+        QueryMsg::DenomWrappedAssetInfo { denom } => to_binary(&query_denom_asset_info(deps, denom)?),
+    }
+}
+
+fn query_denom_asset_info(deps: Deps<CustomQuery>, denom: String) -> StdResult<DenomWrappedAssetInfoResponse> {
+    // Query asset chain
+    match denom_wrapped_asset_chain_id_read(deps.storage).load(denom.as_bytes()) {
+        Ok(asset_chain) => {
+            // Query asset address
+            let asset_address = denom_wrapped_asset_address_read(deps.storage).load(denom.as_bytes())?;
+            Ok(DenomWrappedAssetInfoResponse {
+                found: 1,
+                is_wrapped: 1,
+                asset_chain,
+                asset_address: Binary::from(asset_address)
+            })
+        },
+        Err(_) => {
+            // If it is not a wrapped asset, query denom metadata
+            let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom: denom.clone() }).into();
+            if let Ok(_) = deps.querier.query::<DenomMetadataResponse>(&metadata_req) {
+                Ok(DenomWrappedAssetInfoResponse {
+                    found: 1,
+                    is_wrapped: 0,
+                    asset_chain: CHAIN_ID,
+                    asset_address: Binary::from(ExternalTokenId::from_bank_token(&denom)?.serialize())
+                })
+            } else {
+                // asset not found
+                Ok(DenomWrappedAssetInfoResponse {
+                    found: 0,
+                    is_wrapped: 0,
+                    asset_chain: CHAIN_ID,
+                    asset_address: Binary::default()
+                })
+            }
+        }
     }
 }
 
