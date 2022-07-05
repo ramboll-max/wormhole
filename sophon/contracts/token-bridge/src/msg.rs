@@ -7,7 +7,7 @@ use serde::{
     Deserialize,
     Serialize,
 };
-use terraswap::asset::{
+use crate::asset::{
     Asset,
     AssetInfo,
 };

@@ -5,6 +5,7 @@ pub mod contract;
 pub mod msg;
 pub mod state;
 pub mod token_address;
+pub mod asset;
 
 #[cfg(test)]
 mod testing;

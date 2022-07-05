@@ -12,10 +12,6 @@ use cw20_base::msg::{
     ExecuteMsg as TokenMsg,
     QueryMsg as TokenQuery,
 };
-use terraswap::asset::{
-    Asset,
-    AssetInfo,
-};
 
 use custom_msg::{
     bank_msg::{BankMsg as CustomBankMsg, BankQuery, DenomMetadataResponse},
@@ -88,6 +84,10 @@ use crate::{
         ContractId,
         ExternalTokenId,
         TokenId,
+    },
+    asset::{
+        Asset,
+        AssetInfo,
     },
 };
 
@@ -345,7 +345,7 @@ fn withdraw_tokens(
     data: AssetInfo,
 ) -> StdResult<Response<CustomMsg>> {
     let mut messages: Vec<CosmosMsg<CustomMsg>> = vec![];
-    if let AssetInfo::NativeToken { denom } = data {
+    if let AssetInfo::BankToken { denom } = data {
         let deposit_key = format!("{}:{}", info.sender, denom);
         let mut deposited_amount: u128 = 0;
         bridge_deposit(deps.storage).update(
@@ -456,7 +456,7 @@ fn handle_create_asset_meta(
         AssetInfo::Token { contract_addr } => {
             handle_create_asset_meta_token(deps, env, info, contract_addr, nonce)
         }
-        AssetInfo::NativeToken { ref denom } => {
+        AssetInfo::BankToken { ref denom } => {
             handle_create_asset_meta_native_token(deps, env, info, denom.clone(), nonce)
         }
     }
@@ -1075,7 +1075,7 @@ fn handle_initiate_transfer(
             transfer_type,
             nonce,
         ),
-        AssetInfo::NativeToken { denom } => {
+        AssetInfo::BankToken { denom } => {
             // whether it is a wrapped denom
             match denom_wrapped_asset_address_read(deps.storage).load(denom.as_bytes()) {
                 Ok(asset_addr) => handle_initiate_transfer_wrapped_token(

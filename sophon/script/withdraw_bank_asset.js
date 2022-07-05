@@ -23,7 +23,7 @@ const executeFee = calculateFee(2_500_000, gasPrice);
 const executeMsg = {
     withdraw_tokens: {
         asset: {
-            native_token: { denom: denom },
+            bank_token: { denom: denom },
         },
     }
 };

@@ -19,7 +19,7 @@ const executeMsg = {
         asset: {
             amount: amount,
             info: {
-                native_token:{
+                bank_token:{
                     denom: asset
                 }
             },

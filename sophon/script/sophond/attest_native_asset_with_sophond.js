@@ -14,7 +14,7 @@ const nonce = Math.round(Math.random() * 100000);
 const executeMsg = {
     create_asset_meta: {
         asset_info: {
-            native_token: { denom: asset },
+            bank_token: { denom: asset },
         },
         nonce: nonce,
     }
