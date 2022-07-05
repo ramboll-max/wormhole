@@ -59,8 +59,8 @@ func loadGuardianKey(sk string) (*ecdsa.PrivateKey, error) {
 }
 
 func TestCreateRegisterChainVAA_ETH(t *testing.T) {
-	wormholeAddr := "0xa42bA1AfB03612E4270cC4B6254C64A54aB6DeF4"
-	bz, err := hex.DecodeString(wormholeAddr[2:])
+	tokenBridgeAddr := "0xC0d5e7F36F5F49E6a86650811300D3Ff92f0C476"
+	bz, err := hex.DecodeString(tokenBridgeAddr[2:])
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
 	emitter := Address{}
@@ -120,8 +120,8 @@ func TestCreateRegisterChainVAA_Terra(t *testing.T) {
 }
 
 func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
-	sophonAddr := "sop1vguuxez2h5ekltfj9gjd62fs5k4rl2zy5hfrncasykzw08rezpfsf9x6vd"
-	bz, err := sdk.GetFromBech32(sophonAddr, "sop")
+	sophonTokenBridgeAddr := "sop1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquz2k54"
+	bz, err := sdk.GetFromBech32(sophonTokenBridgeAddr, "sop")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
 	emitter := Address{}
