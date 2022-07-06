@@ -52,6 +52,7 @@ func init() {
 	rootCmd.AddCommand(guardiand.TemplateCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(debug.DebugCmd)
+	rootCmd.AddCommand(guardiand.RpcClientCmd)
 }
 
 // initConfig reads in config file and ENV variables if set.
