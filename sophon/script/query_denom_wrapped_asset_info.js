@@ -15,14 +15,16 @@ const client = await SigningCosmWasmClient.connectWithSigner(
 );
 
 const tokenBridgeAddress = process.env.TOKEN_BRIDGE_ADDRESS;
-const eth_token_addr = "a3b8F4ef8F1B981F7fF83Dc7317a56DbDDaC8349";
+const asset = process.env.DENOM;
 const executeMsg = {
     denom_wrapped_asset_info: {
-        denom: "token/tkn/24"
+        denom: asset
     },
 };
 const json = JSON.stringify(executeMsg);
 console.log(json)
 const res = await client.queryContractSmart(tokenBridgeAddress, executeMsg);
 console.log(JSON.stringify(res, "", " "));
+
+console.log("asset_address(Wormhole format):", Buffer.from(res.asset_address, "base64").toString("hex"))
 

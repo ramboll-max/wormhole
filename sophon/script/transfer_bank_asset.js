@@ -20,9 +20,10 @@ const gasPrice = GasPrice.fromString(gas_prices);
 const tokenBridgeAddress = process.env.TOKEN_BRIDGE_ADDRESS;
 const denom = process.env.DENOM;
 const executeFee = calculateFee(2_500_000, gasPrice);
-const amount = "1000000000000000000";
+const amount = process.env.AMOUNT;
 const recipient_chain = 2;
-const recipient = "000000000000000000000000011e8F7D1B292d05779d43c62EAF3e200872D1df";
+const eth_recipient = process.env.ETH_RECIPIENT;
+const recipient = "0000000000000000000000000" + eth_recipient.substring(2);
 const nonce = Math.round(Math.random() * 100000);
 const executeMsg = {
     initiate_transfer: {
@@ -44,4 +45,8 @@ const json = JSON.stringify(executeMsg);
 console.log(json)
 const res = await client.execute(acc_address, tokenBridgeAddress, executeMsg, executeFee);
 console.log(JSON.stringify(res, "", " "));
-
+const logJson = JSON.stringify(res.logs);
+const message_sender = /"message.sender","value":"([^"]+)/gm.exec(`${logJson}`)[1];
+const message_chain_id = /"message.chain_id","value":"([^"]+)/gm.exec(`${logJson}`)[1];
+const message_sequence = /"message.sequence","value":"([^"]+)/gm.exec(`${logJson}`)[1];
+console.log("message_id:", `${message_chain_id}/${message_sender}/${message_sequence}`)
