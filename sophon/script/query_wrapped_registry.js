@@ -15,15 +15,16 @@ const client = await SigningCosmWasmClient.connectWithSigner(
 );
 
 const tokenBridgeAddress = process.env.TOKEN_BRIDGE_ADDRESS;
-const eth_token_addr = "a3b8F4ef8F1B981F7fF83Dc7317a56DbDDaC8349";
+const eth_token_addr = process.env.ETH_ERC20;
 const executeMsg = {
     wrapped_registry: {
         chain: 2,
-        address: Buffer.from(zeroPad(fromHex(eth_token_addr.toLowerCase()), 32), "hex").toString("base64"),
+        address: Buffer.from(zeroPad(fromHex(eth_token_addr.substring(2).toLowerCase()), 32), "hex").toString("base64"),
     }
 };
 const json = JSON.stringify(executeMsg);
 console.log(json)
-const submitVAARes = await client.queryContractSmart(tokenBridgeAddress, executeMsg);
-console.log(JSON.stringify(submitVAARes, "", " "));
+const res = await client.queryContractSmart(tokenBridgeAddress, executeMsg);
+console.log(JSON.stringify(res, "", " "));
+console.log("wrapped denom:", res.denom);
 

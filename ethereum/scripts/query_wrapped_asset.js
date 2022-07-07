@@ -25,7 +25,7 @@ module.exports = async function (callback) {
         const chainId = await wrappedAsset.methods.chainId().call();
         console.log("chain id:", chainId);
         const nativeContract = await wrappedAsset.methods.nativeContract().call();
-        console.log("native contract:", nativeContract);
+        console.log("native asset address:", nativeContract);
 
         callback();
     }

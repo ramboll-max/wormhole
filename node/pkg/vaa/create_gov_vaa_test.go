@@ -58,7 +58,7 @@ func loadGuardianKey(sk string) (*ecdsa.PrivateKey, error) {
 }
 
 func TestCreateRegisterChainVAA_ETH(t *testing.T) {
-	tokenBridgeAddr := "0x1F76b508706C082A808164fC974eBADb100Aa228"
+	tokenBridgeAddr := "0x459732edE0f7D3AbDB55B5cDb7c6eD8060e4a17F"
 	bz, err := hex.DecodeString(tokenBridgeAddr[2:])
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
@@ -119,7 +119,7 @@ func TestCreateRegisterChainVAA_Terra(t *testing.T) {
 }
 
 func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
-	sophonTokenBridgeAddr := "sop1x8gwn06l85q0lyncy7zsde8zzdn588k2dck00a8j6lkprydcutwqum5nmx"
+	sophonTokenBridgeAddr := "sop15v8jqq6aqhsuykdgdevx3qqcj9lp4h27ypsycds4cmv6er9qv0vsp2cj2t"
 	bz, err := sdk.GetFromBech32(sophonTokenBridgeAddr, "sop")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)

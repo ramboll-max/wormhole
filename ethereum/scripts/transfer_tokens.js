@@ -1,4 +1,6 @@
 const jsonfile = require("jsonfile");
+const {toHex, fromBech32} = require("@honsop/encoding");
+const {zeroPad} = require("ethers/lib/utils.js");
 
 const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Implementation.json").abi;
 const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/BridgeImplementation.json").abi;
@@ -7,15 +9,15 @@ const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/Tok
 const wormholeAddress = process.env.WORMHOLE;
 const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
 const tokenAddr = process.env.TOKEN_ADDR;
-const recipientChain = "20001";
-const recipient = "0x0000000000000000000000004c8d2dc4d82c23c51df9c7c5981353854957200f";
+const recipientSophon = process.env.SOPHON_RECIPIENT;
+const recipientChain = process.env.RECIPIENT_CHAIN;
+const amount = process.env.AMOUNT;
 
 module.exports = async function (callback) {
     try {
         const accounts = await web3.eth.getAccounts();
-        const amount = "1000000000000000000";
         const fee = "0";
-
+        const recipient = "0x" + toHex(zeroPad(fromBech32(recipientSophon).data, 32));
         const ERC20 = new web3.eth.Contract(TokenImplementationFullABI, tokenAddr);
 
         const approveRes = await ERC20.methods.approve(ethTokenBridgeAddress, amount).send(
@@ -116,7 +118,7 @@ module.exports = async function (callback) {
         console.log("fee", log.payload.substr(204, 64));
         // assert.equal(log.payload.substr(204, 64), web3.eth.abi.encodeParameter("uint256", new BigNumber(fee).div(1e10).toString()).substring(2))
 
-
+        console.log("message_id:", `2/000000000000000000000000${log.sender.substring(2)}/${log.sequence}`);
         callback();
     }
     catch (e) {

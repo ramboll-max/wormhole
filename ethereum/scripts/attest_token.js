@@ -1,7 +1,5 @@
 const jsonfile = require("jsonfile");
 
-
-
 const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Implementation.json").abi
 const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/BridgeImplementation.json").abi
 
@@ -44,36 +42,39 @@ module.exports = async function (callback) {
         // console.log(log);
 
         // sender
-        console.log("sender", log.sender);
+        console.log("sender:", log.sender);
 
         // sequence
-        console.log("sequence", log.sequence);
+        console.log("sequence:", log.sequence);
 
         // nonce
-        console.log("nonce", log.nonce);
+        console.log("nonce:", log.nonce);
 
         // payload
         // console.log("payload", log.payload);
         // assert.equal(log.payload.length - 2, 266);
 
         // payload id
-        console.log("payload id", log.payload.substr(2, 2));
+        console.log("payload id:", log.payload.substr(2, 2));
 
         // token address
-        console.log("token address", log.payload.substr(4, 64));
+        console.log("token address:", log.payload.substr(4, 64));
 
         // chain id
-        console.log("chain id", log.payload.substr(68, 4));
+        console.log("chain id:", log.payload.substr(68, 4));
 
         // decimals
-        console.log("recipient", log.payload.substr(72, 2));
+        console.log("recipient:", log.payload.substr(72, 2));
 
         // symbol
-        console.log("symbol", log.payload.substr(74, 64));
+        console.log("symbol:", log.payload.substr(74, 64));
 
         // name
-        console.log("name", log.payload.substr(138, 64));
+        console.log("name:", log.payload.substr(138, 64));
 
+        console.log("");
+
+        console.log("message_id:", `2/000000000000000000000000${log.sender.substring(2)}/${log.sequence}`);
         callback();
     }
     catch (e) {

@@ -1,4 +1,6 @@
 const jsonfile = require("jsonfile");
+const {fromBech32, toHex} = require("@honsop/encoding");
+const {zeroPad} = require("ethers/lib/utils.js");
 const MockWETH9 = artifacts.require("MockWETH9");
 
 const WormholeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Implementation.json").abi
@@ -7,21 +9,21 @@ const BridgeImplementationFullABI = jsonfile.readFileSync("../build/contracts/Br
 const wormholeAddress = process.env.WORMHOLE;
 const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
 const WETHAddress = process.env.WETH;
-const recipient = "0x0000000000000000000000004c8d2dc4d82c23c51df9c7c5981353854957200f";
-const recipientChain = "20001";
+const recipientSophon = process.env.SOPHON_RECIPIENT;
+const recipientChain = process.env.RECIPIENT_CHAIN;
+const amount = process.env.AMOUNT;
 
 module.exports = async function (callback) {
     try {
         const accounts = await web3.eth.getAccounts();
-        const amount = "1000000000000000000";
         const fee = "0";
-
+        const recipient = "0x" + toHex(zeroPad(fromBech32(recipientSophon).data, 32));
         const WETH = new web3.eth.Contract(MockWETH9.abi, WETHAddress);
 
         const totalWETHSupply = await WETH.methods.totalSupply().call();
-        console.log("total WETH supply", totalWETHSupply);
+        console.log("total WETH supply:", totalWETHSupply);
         const balanceOfTokenBridge = await WETH.methods.balanceOf(ethTokenBridgeAddress).call();
-        console.log("WETH balance of token bridge", balanceOfTokenBridge);
+        console.log("WETH balance of token bridge:", balanceOfTokenBridge);
 
         const tokenBridge = new web3.eth.Contract(BridgeImplementationFullABI, ethTokenBridgeAddress);
 
@@ -41,17 +43,17 @@ module.exports = async function (callback) {
         // console.log(result);
 
         // tx hash
-        console.log("tx hash", result.transactionHash);
+        console.log("tx hash:", result.transactionHash);
         // block hash
-        console.log("block hash", result.blockHash);
+        console.log("block hash:", result.blockHash);
         // block num
         const blockNum = result.blockNumber;
-        console.log("block num", blockNum);
+        console.log("block num:", blockNum);
 
         const totalWETHSupplyAfter = await WETH.methods.totalSupply().call();
-        console.log("total WETH supply (New)", totalWETHSupplyAfter);
+        console.log("total WETH supply (New):", totalWETHSupplyAfter);
         const balanceOfTokenBridgeAfter = await WETH.methods.balanceOf(ethTokenBridgeAddress).call();
-        console.log("WETH balance of token bridge (New)", balanceOfTokenBridgeAfter);
+        console.log("WETH balance of token bridge (New):", balanceOfTokenBridgeAfter);
 
         // check transfer log
         const wormhole = new web3.eth.Contract(WormholeImplementationFullABI, wormholeAddress);
@@ -62,44 +64,44 @@ module.exports = async function (callback) {
         // console.log(log)
 
         // sender
-        console.log("sender", log.sender);
+        console.log("sender:", log.sender);
 
         // sequence
-        console.log("sequence", log.sequence);
+        console.log("sequence:", log.sequence);
 
         // nonce
-        console.log("nonce", log.nonce);
+        console.log("nonce:", log.nonce);
 
         // payload
         // console.log("payload", log.payload);
         // assert.equal(log.payload.length - 2, 266);
 
         // payload id
-        console.log("payload id", log.payload.substr(2, 2));
+        console.log("payload id:", log.payload.substr(2, 2));
         // assert.equal(log.payload.substr(2, 2), "01");
 
         // amount
-        console.log("amount", log.payload.substr(4, 64));
+        console.log("amount:", log.payload.substr(4, 64));
         // assert.equal(log.payload.substr(4, 64), web3.eth.abi.encodeParameter("uint256", new BigNumber(amount).div(1e10).toString()).substring(2));
 
         // token
-        console.log("token", log.payload.substr(68, 64));
+        console.log("token:", log.payload.substr(68, 64));
         // assert.equal(log.payload.substr(68, 64), web3.eth.abi.encodeParameter("address", WETH).substring(2));
 
         // chain id
-        console.log("chain id", log.payload.substr(132, 4));
+        console.log("chain id:", log.payload.substr(132, 4));
         // assert.equal(log.payload.substr(132, 4), web3.eth.abi.encodeParameter("uint16", testChainId).substring(2 + 64 - 4))
 
         // recipient
-        console.log("recipient", log.payload.substr(136, 64));
+        console.log("recipient:", log.payload.substr(136, 64));
         // assert.equal(log.payload.substr(136, 64), "000000000000000000000000b7a2211e8165943192ad04f5dd21bedc29ff003e");
 
         // to chain id
-        console.log("recipient chain id", log.payload.substr(200, 4));
+        console.log("recipient chain id:", log.payload.substr(200, 4));
         // assert.equal(log.payload.substr(200, 4), web3.eth.abi.encodeParameter("uint16", 10).substring(2 + 64 - 4))
 
         // fee
-        console.log("fee", log.payload.substr(204, 64));
+        console.log("fee:", log.payload.substr(204, 64));
         // assert.equal(log.payload.substr(204, 64), web3.eth.abi.encodeParameter("uint256", new BigNumber(fee).div(1e10).toString()).substring(2))
 
         // Register the ETH endpoint
@@ -108,7 +110,7 @@ module.exports = async function (callback) {
         //     from: accounts[0],
         //     gasLimit: 2000000
         // });
-
+        console.log("message_id:", `2/000000000000000000000000${log.sender.substring(2)}/${log.sequence}`);
         callback();
     }
     catch (e) {

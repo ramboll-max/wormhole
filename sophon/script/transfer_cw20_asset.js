@@ -20,9 +20,10 @@ const gasPrice = GasPrice.fromString(gas_prices);
 const tokenBridgeAddress = process.env.TOKEN_BRIDGE_ADDRESS;
 const asset = process.env.TOKEN_CONTRACT_ADDR;
 const executeFee = calculateFee(2_500_000, gasPrice);
-const amount = "1000000000000000000";
+const amount = process.env.AMOUNT;
 const recipient_chain = 2;
-const recipient = "000000000000000000000000011e8F7D1B292d05779d43c62EAF3e200872D1df";
+const eth_recipient = process.env.ETH_RECIPIENT;
+const recipient = "0000000000000000000000000" + eth_recipient.substring(2);
 const nonce = Math.round(Math.random() * 100000);
 const executeMsg = {
     initiate_transfer: {
