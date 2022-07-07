@@ -1,7 +1,30 @@
 use std::cmp::max;
 use std::str::FromStr;
 
-use cosmwasm_std::{BankMsg, Binary, CanonicalAddr, coin, Coin, CosmosMsg, Deps, DepsMut, Env, Event, from_binary, MessageInfo, QueryRequest, Reply, Response, StdError, StdResult, SubMsg, to_binary, Uint128, WasmMsg, WasmQuery};
+use cosmwasm_std::{
+    BankMsg,
+    Binary,
+    CanonicalAddr,
+    coin,
+    Coin,
+    CosmosMsg,
+    Deps,
+    DepsMut,
+    Env,
+    Event,
+    from_binary,
+    MessageInfo,
+    QueryRequest,
+    Reply,
+    Response,
+    StdError,
+    StdResult,
+    SubMsg,
+    to_binary,
+    Uint128,
+    WasmMsg,
+    WasmQuery
+};
 #[allow(unused_imports)]
 use cosmwasm_std::entry_point;
 use cw20::{
@@ -14,11 +37,18 @@ use cw20_base::msg::{
 };
 
 use custom_msg::{
-    bank_msg::{BankMsg as CustomBankMsg, BankQuery, DenomMetadataResponse},
-    custom_msg::CustomQuery,
-    token_msg::{IssueResponse, TokenMsg as CustomTokenMsg}
+    bank_msg::{
+        BankMsg as CustomBankMsg,
+        BankQuery,
+        DenomMetadataResponse},
+    custom_msg::{
+        CustomQuery,
+        CustomMsg},
+    token_msg::{
+        IssueResponse,
+        TokenMsg as CustomTokenMsg
+    }
 };
-use custom_msg::custom_msg::CustomMsg;
 use wormhole::{
     byte_utils::{
         ByteUtils,
