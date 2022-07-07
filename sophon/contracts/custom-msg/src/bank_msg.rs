@@ -34,7 +34,7 @@ pub struct DenomUnit {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Metadata {
-    pub description: String,
+    pub description: Option<String>,
     pub denom_units: Vec<DenomUnit>,
     pub base: String,
     pub display: Option<String>,
