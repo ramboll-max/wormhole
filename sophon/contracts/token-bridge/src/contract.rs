@@ -1160,7 +1160,6 @@ fn handle_initiate_transfer_token(
     }
 
     let asset_chain: u16;
-    let asset_address: [u8; 32];
 
     let asset_canonical: CanonicalAddr = deps.api.addr_canonicalize(&asset)?;
 
@@ -1208,7 +1207,6 @@ fn handle_initiate_transfer_token(
         TRANSFER_FROM_REPLY_ID,
     ));
 
-    asset_address = extend_address_to_32_array(&asset_canonical);
     asset_chain = CHAIN_ID;
     let address_human = deps.api.addr_humanize(&asset_canonical)?;
     // we store here just in case the token is transferred out before it's attested
@@ -1244,7 +1242,7 @@ fn handle_initiate_transfer_token(
         TransferType::WithoutPayload => {
             let transfer_info = TransferInfo {
                 amount: (0, wormhole_amount.u128()),
-                token_address: external_id,
+                token_address: external_id.clone(),
                 token_chain: asset_chain,
                 recipient,
                 recipient_chain,
@@ -1258,7 +1256,7 @@ fn handle_initiate_transfer_token(
         TransferType::WithPayload { payload } => {
             let transfer_info = TransferWithPayloadInfo {
                 amount: (0, wormhole_amount.u128()),
-                token_address: external_id,
+                token_address: external_id.clone(),
                 token_chain: asset_chain,
                 recipient,
                 recipient_chain,
@@ -1287,7 +1285,8 @@ fn handle_initiate_transfer_token(
     // emit Event
     let event = Event::new("initiate_transfer_token")
         .add_attribute("transfer.token_chain", asset_chain.to_string())
-        .add_attribute("transfer.token", hex::encode(asset_address))
+        .add_attribute("transfer.token", hex::encode(external_id.serialize()))
+        .add_attribute("transfer.cw20", asset)
         .add_attribute(
             "transfer.sender",
             hex::encode(extend_address_to_32(
@@ -1352,7 +1351,7 @@ fn handle_initiate_transfer_wrapped_token(
     let external_id = ExternalTokenId::from_foreign_token(asset_chain, asset_address);
 
     // Call query DenomMetadata for bank module
-    let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom }).into();
+    let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom: denom.clone() }).into();
     let metadata_res: DenomMetadataResponse = deps.querier.query(&metadata_req)?;
     let display = metadata_res.metadata.display.unwrap();
     let mut decimals: u8 = 0;
@@ -1427,6 +1426,7 @@ fn handle_initiate_transfer_wrapped_token(
     let event = Event::new("initiate_transfer_wrapped_token")
         .add_attribute("transfer.token_chain", asset_chain.to_string())
         .add_attribute("transfer.token", hex::encode(asset_address.as_slice()))
+        .add_attribute("transfer.wrapped_denom", denom)
         .add_attribute(
             "transfer.sender",
             hex::encode(extend_address_to_32(&sender)),
@@ -1479,7 +1479,7 @@ fn handle_initiate_transfer_native_token(
     let asset_address = TokenId::Bank { denom: denom.clone() }.store(deps.storage)?;
 
     // Call query DenomMetadata for bank module
-    let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom }).into();
+    let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom: denom.clone() }).into();
     let metadata_res: DenomMetadataResponse = deps.querier.query(&metadata_req)?;
     let display = metadata_res.metadata.display.unwrap();
     let mut decimals: u8 = 0;
@@ -1555,6 +1555,7 @@ fn handle_initiate_transfer_native_token(
     let event = Event::new("initiate_transfer_native_token")
         .add_attribute("transfer.token_chain", asset_chain.to_string())
         .add_attribute("transfer.token", hex::encode(asset_address.serialize()))
+        .add_attribute("transfer.denom", denom)
         .add_attribute(
             "transfer.sender",
             hex::encode(extend_address_to_32(&sender)),
