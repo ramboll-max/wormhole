@@ -8,7 +8,7 @@ module.exports = {
     priv: {
       provider: () => new HDWalletProvider(
           process.env.MNEMONIC,
-          `http://101.35.182.31:8545`
+          `http://13.231.90.171:8545`
       ),
       network_id: 2117,
       // gas: 10000000,
