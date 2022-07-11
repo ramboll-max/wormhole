@@ -8,7 +8,7 @@ module.exports = {
     priv: {
       provider: () => new HDWalletProvider(
           process.env.MNEMONIC,
-          `http://13.231.90.171:8545`
+          `https://geth.metaos.im/`
       ),
       network_id: 2117,
       // gas: 10000000,
