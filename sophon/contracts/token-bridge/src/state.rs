@@ -37,7 +37,6 @@ pub static WRAPPED_ASSET_CHAIN_ID_KEY: &[u8] = b"wrapped_asset_chain_id";
 pub static WRAPPED_ASSET_ADDRESS_KEY: &[u8] = b"wrapped_asset_address";
 pub static WRAPPED_ASSET_DENOM_KEY: &[u8] = b"wrapped_asset_denom";
 pub static BRIDGE_CONTRACTS: &[u8] = b"bridge_contracts";
-pub static BRIDGE_DEPOSITS: &[u8] = b"bridge_deposits";
 pub static NATIVE_COUNTER: &[u8] = b"native_counter";
 pub static BANK_TOKEN_HASHES_KEY: &[u8] = b"bank_token_hashes";
 pub static NATIVE_CW20_HASHES_KEY: &[u8] = b"native_cw20_hashes";
@@ -58,14 +57,6 @@ pub fn config(storage: &mut dyn Storage) -> Singleton<ConfigInfo> {
 
 pub fn config_read(storage: &dyn Storage) -> ReadonlySingleton<ConfigInfo> {
     singleton_read(storage, CONFIG_KEY)
-}
-
-pub fn bridge_deposit(storage: &mut dyn Storage) -> Bucket<Uint128> {
-    bucket(storage, BRIDGE_DEPOSITS)
-}
-
-pub fn bridge_deposit_read(storage: &dyn Storage) -> ReadonlyBucket<Uint128> {
-    bucket_read(storage, BRIDGE_DEPOSITS)
 }
 
 pub fn bridge_contracts(storage: &mut dyn Storage) -> Bucket<Vec<u8>> {

@@ -27,10 +27,23 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    DepositTokens {},
-    WithdrawTokens {
-        asset: AssetInfo,
+    DepositAndTransferBankTokens {
+        recipient_chain: u16,
+        recipient: Binary,
+        fee: Uint128,
+        nonce: u32,
     },
+    DepositAndTransferBankTokensWithPayload {
+        recipient_chain: u16,
+        recipient: Binary,
+        fee: Uint128,
+        payload: Binary,
+        nonce: u32,
+    },
+    // DepositTokens {},
+    // WithdrawTokens {
+    //     asset: AssetInfo,
+    // },
 
     InitiateTransfer {
         asset: Asset,

@@ -91,7 +91,6 @@ use crate::{
         AssetMeta,
         bridge_contracts,
         bridge_contracts_read,
-        bridge_deposit,
         config,
         config_read,
         ConfigInfo,
@@ -306,6 +305,39 @@ fn parse_vaa(deps: Deps<CustomQuery>, block_time: u64, data: &Binary) -> StdResu
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut<CustomQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response<CustomMsg>> {
     match msg {
+        ExecuteMsg::DepositAndTransferBankTokens {
+            recipient_chain,
+            recipient,
+            fee,
+            nonce,
+        } => handle_deposit_and_transfer(
+            deps,
+            env,
+            info,
+            recipient_chain,
+            recipient.to_array()?,
+            fee,
+            TransferType::WithoutPayload,
+            nonce,
+        ),
+        ExecuteMsg::DepositAndTransferBankTokensWithPayload {
+            recipient_chain,
+            recipient,
+            fee,
+            payload,
+            nonce,
+        } => handle_deposit_and_transfer(
+            deps,
+            env,
+            info,
+            recipient_chain,
+            recipient.to_array()?,
+            fee,
+            TransferType::WithPayload {
+                payload: payload.into(),
+            },
+            nonce,
+        ),
         ExecuteMsg::InitiateTransfer {
             asset,
             recipient_chain,
@@ -343,8 +375,6 @@ pub fn execute(deps: DepsMut<CustomQuery>, env: Env, info: MessageInfo, msg: Exe
             },
             nonce,
         ),
-        ExecuteMsg::DepositTokens {} => deposit_tokens(deps, env, info),
-        ExecuteMsg::WithdrawTokens { asset } => withdraw_tokens(deps, env, info, asset),
         ExecuteMsg::SubmitVaa { data } => submit_vaa(deps, env, info, &data),
         ExecuteMsg::CreateAssetMeta { asset_info, nonce } => {
             handle_create_asset_meta(deps, env, info, asset_info, nonce)
@@ -355,49 +385,64 @@ pub fn execute(deps: DepsMut<CustomQuery>, env: Env, info: MessageInfo, msg: Exe
     }
 }
 
-fn deposit_tokens(deps: DepsMut<CustomQuery>, _env: Env, info: MessageInfo) -> StdResult<Response<CustomMsg>> {
-    for coin in info.funds {
-        let deposit_key = format!("{}:{}", info.sender, coin.denom);
-        bridge_deposit(deps.storage).update(
-            deposit_key.as_bytes(),
-            |amount: Option<Uint128>| -> StdResult<Uint128> {
-                Ok(amount.unwrap_or(Uint128::new(0)) + coin.amount)
-            },
-        )?;
-    }
-
-    Ok(Response::new().add_attribute("action", "deposit_tokens"))
-}
-
-fn withdraw_tokens(
+#[allow(clippy::too_many_arguments)]
+fn handle_deposit_and_transfer(
     deps: DepsMut<CustomQuery>,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
-    data: AssetInfo,
+    recipient_chain: u16,
+    recipient: [u8; 32],
+    fee: Uint128,
+    transfer_type: TransferType<Vec<u8>>,
+    nonce: u32,
 ) -> StdResult<Response<CustomMsg>> {
-    let mut messages: Vec<CosmosMsg<CustomMsg>> = vec![];
-    if let AssetInfo::BankToken { denom } = data {
-        let deposit_key = format!("{}:{}", info.sender, denom);
-        let mut deposited_amount: u128 = 0;
-        bridge_deposit(deps.storage).update(
-            deposit_key.as_bytes(),
-            |current: Option<Uint128>| match current {
-                Some(v) => {
-                    deposited_amount = v.u128();
-                    Ok(Uint128::new(0))
-                }
-                None => Err(StdError::generic_err("no deposit found to withdraw")),
-            },
-        )?;
-        messages.push(CosmosMsg::Bank(BankMsg::Send {
-            to_address: info.sender.to_string(),
-            amount: vec![coin(deposited_amount, &denom)],
-        }));
+    // deposit
+    let denoms_count = info.funds.len();
+    if denoms_count == 0 {
+        return Err(StdError::generic_err("no denom sent"));
     }
+    if denoms_count > 1 {
+        return Err(StdError::generic_err("only one denom can be sent at one time"));
+    }
+    let coin = match info.funds.get(0) {
+        Some(v) => v,
+        None => return Err(StdError::generic_err("no funds"))
+    };
+    let denom = coin.clone().denom;
+    let send_amount = coin.amount;
 
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_attribute("action", "withdraw_tokens"))
+    // whether it is a wrapped denom
+    let init_res = match denom_wrapped_asset_address_read(deps.storage).load(denom.as_bytes()) {
+        Ok(asset_addr) => initiate_transfer_wrapped_token(
+            deps,
+            env,
+            info,
+            denom.clone(),
+            send_amount,
+            recipient_chain,
+            recipient,
+            fee,
+            transfer_type,
+            nonce,
+            asset_addr,
+        ),
+        Err(_) => initiate_transfer_native_token(
+            deps,
+            env,
+            info,
+            denom.clone(),
+            send_amount,
+            recipient_chain,
+            recipient,
+            fee,
+            transfer_type,
+            nonce,
+        )
+    };
+    match init_res {
+        Ok(res) => Ok(res.add_attribute("action", "deposit_and_transfer")),
+        Err(err) => Err(err)
+    }
 }
 
 fn handle_create_wrapped(
@@ -1106,36 +1151,10 @@ fn handle_initiate_transfer(
             transfer_type,
             nonce,
         ),
-        AssetInfo::BankToken { denom } => {
-            // whether it is a wrapped denom
-            match denom_wrapped_asset_address_read(deps.storage).load(denom.as_bytes()) {
-                Ok(asset_addr) => handle_initiate_transfer_wrapped_token(
-                    deps,
-                    env,
-                    info,
-                    denom.clone(),
-                    asset.amount,
-                    recipient_chain,
-                    recipient,
-                    fee,
-                    transfer_type,
-                    nonce,
-                    asset_addr,
-                ),
-                Err(_) => handle_initiate_transfer_native_token(
-                    deps,
-                    env,
-                    info,
-                    denom.clone(),
-                    asset.amount,
-                    recipient_chain,
-                    recipient,
-                    fee,
-                    transfer_type,
-                    nonce,
-                )
-            }
-        },
+        AssetInfo::BankToken { denom: _ } =>
+            Err(
+                StdError::generic_err("use deposit_and_transfer_bank_tokens to transfer denom")
+            ),
     }
 }
 
@@ -1303,7 +1322,7 @@ fn handle_initiate_transfer_token(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn handle_initiate_transfer_wrapped_token(
+fn initiate_transfer_wrapped_token(
     deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
@@ -1326,14 +1345,6 @@ fn handle_initiate_transfer_wrapped_token(
     if fee > amount {
         return Err(StdError::generic_err("fee greater than sent amount"));
     }
-
-    let deposit_key = format!("{}:{}", info.sender, denom);
-    bridge_deposit(deps.storage).update(deposit_key.as_bytes(), |current: Option<Uint128>| {
-        match current {
-            Some(v) => Ok(v.checked_sub(amount)?),
-            None => Err(StdError::generic_err("no deposit found to transfer")),
-        }
-    })?;
 
     let cfg: ConfigInfo = config_read(deps.storage).load()?;
     let mut messages: Vec<CosmosMsg<CustomMsg>> = vec![];
@@ -1441,7 +1452,7 @@ fn handle_initiate_transfer_wrapped_token(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn handle_initiate_transfer_native_token(
+fn initiate_transfer_native_token(
     deps: DepsMut<CustomQuery>,
     env: Env,
     info: MessageInfo,
@@ -1462,14 +1473,6 @@ fn handle_initiate_transfer_native_token(
     if fee > amount {
         return Err(StdError::generic_err("fee greater than sent amount"));
     }
-
-    let deposit_key = format!("{}:{}", info.sender, denom);
-    bridge_deposit(deps.storage).update(deposit_key.as_bytes(), |current: Option<Uint128>| {
-        match current {
-            Some(v) => Ok(v.checked_sub(amount)?),
-            None => Err(StdError::generic_err("no deposit found to transfer")),
-        }
-    })?;
 
     let cfg: ConfigInfo = config_read(deps.storage).load()?;
     let mut messages: Vec<CosmosMsg<CustomMsg>> = vec![];
