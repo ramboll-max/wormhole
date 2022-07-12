@@ -19,7 +19,7 @@ import (
 
 	gossipv1 "github.com/certusone/wormhole/node/pkg/proto/gossip/v1"
 	nodev1 "github.com/certusone/wormhole/node/pkg/proto/node/v1"
-	"github.com/certusone/wormhole/node/pkg/terra"
+	cosmwasm "github.com/certusone/wormhole/node/pkg/terra"
 	"github.com/certusone/wormhole/node/pkg/vaa"
 
 	"github.com/tidwall/gjson"
@@ -27,15 +27,31 @@ import (
 	"google.golang.org/grpc"
 )
 
+var fcdMap = map[vaa.ChainID]string{
+	vaa.ChainIDTerra:  "https://fcd.terra.dev",
+	vaa.ChainIDTerra2: "https://phoenix-fcd.terra.dev",
+}
+
+var coreContractMap = map[vaa.ChainID]string{
+	vaa.ChainIDTerra:  "terra1dq03ugtd40zu9hcgdzrsq6z2z4hwhc9tqk2uy5",
+	vaa.ChainIDTerra2: "terra12mrnzvhx3rpej6843uge2yyfppfyd3u9c3uq223q8sl48huz9juqffcnhp",
+}
+
+var emitterMap = map[vaa.ChainID]string{
+	vaa.ChainIDTerra:  "0000000000000000000000007cf7b764e38a0a5e967972c1df77d432510564e2",
+	vaa.ChainIDTerra2: "a463ad028fb79679cfc8ce1efba35ac0e77b35080a1abe9bebe83461f176b0a3",
+}
+
+type Emitter struct {
+	ChainID vaa.ChainID
+	Emitter string
+}
+
 var (
-	adminRPC     = flag.String("adminRPC", "/run/guardiand/admin.socket", "Admin RPC address")
-	terraAddr    = flag.String("terraProgram", "terra1dq03ugtd40zu9hcgdzrsq6z2z4hwhc9tqk2uy5", "Terra program address")
-	dryRun       = flag.Bool("dryRun", true, "Dry run")
-	sleepTime    = flag.Int("sleepTime", 1, "Time to sleep between http requests")
-	TerraEmitter = struct {
-		ChainID vaa.ChainID
-		Emitter string
-	}{vaa.ChainIDTerra, "0000000000000000000000007cf7b764e38a0a5e967972c1df77d432510564e2"}
+	adminRPC  = flag.String("adminRPC", "/run/guardiand/admin.socket", "Admin RPC address")
+	chain     = flag.String("chain", "terra", "CosmWasm Chain name")
+	dryRun    = flag.Bool("dryRun", true, "Dry run")
+	sleepTime = flag.Int("sleepTime", 1, "Time to sleep between http requests")
 )
 
 func getAdminClient(ctx context.Context, addr string) (*grpc.ClientConn, error, nodev1.NodePrivilegedServiceClient) {
@@ -49,11 +65,11 @@ func getAdminClient(ctx context.Context, addr string) (*grpc.ClientConn, error, 
 	return conn, err, c
 }
 
-func getSequencesForTxhash(txhash string) ([]uint64, error) {
+func getSequencesForTxhash(txhash string, fcd string, contractAddressLogKey string, coreContract string, emitter Emitter, chainID vaa.ChainID) ([]uint64, error) {
 	client := &http.Client{
 		Timeout: time.Second * 5,
 	}
-	url := fmt.Sprintf("https://fcd.terra.dev/cosmos/tx/v1beta1/txs/%s", txhash)
+	url := fmt.Sprintf("%s/cosmos/tx/v1beta1/txs/%s", fcd, txhash)
 	resp, err := client.Get(url)
 	if err != nil {
 		return []uint64{}, fmt.Errorf("failed to get message: %w", err)
@@ -70,21 +86,21 @@ func getSequencesForTxhash(txhash string) ([]uint64, error) {
 	}
 	txHashRaw := gjson.Get(txJSON, "tx_response.txhash")
 	if !txHashRaw.Exists() {
-		return []uint64{}, fmt.Errorf("terra tx does not have tx hash")
+		return []uint64{}, fmt.Errorf("cosmwasm tx does not have tx hash")
 	}
 	txHash := txHashRaw.String()
 
 	events := gjson.Get(txJSON, "tx_response.events")
 	if !events.Exists() {
-		return []uint64{}, fmt.Errorf("terra tx has no events")
+		return []uint64{}, fmt.Errorf("cosmwasm tx has no events")
 	}
-	msgs := EventsToMessagePublications(*terraAddr, txHash, events.Array())
+	msgs := EventsToMessagePublications(coreContract, txHash, events.Array(), chainID, contractAddressLogKey)
 	// Should only ever be 1 message. Stole the above function from watcher.go
 	var sequences = []uint64{}
 	for _, msg := range msgs {
-		tokenBridgeEmitter, err := vaa.StringToAddress(TerraEmitter.Emitter)
+		tokenBridgeEmitter, err := vaa.StringToAddress(emitter.Emitter)
 		if err != nil {
-			log.Fatalf("Terra emitter address is not valid: %s", TerraEmitter.Emitter)
+			log.Fatalf("Emitter address is not valid: %s", emitter.Emitter)
 		}
 		if msg.EmitterAddress == tokenBridgeEmitter {
 			sequences = append(sequences, msg.Sequence)
@@ -94,11 +110,11 @@ func getSequencesForTxhash(txhash string) ([]uint64, error) {
 }
 
 // This was stolen from pkg/terra/watcher.go
-func EventsToMessagePublications(contract string, txHash string, events []gjson.Result) []*common.MessagePublication {
+func EventsToMessagePublications(contract string, txHash string, events []gjson.Result, chainID vaa.ChainID, contractAddressLogKey string) []*common.MessagePublication {
 	msgs := make([]*common.MessagePublication, 0, len(events))
 	for _, event := range events {
 		if !event.IsObject() {
-			log.Println("terra event is invalid", zap.String("tx_hash", txHash), zap.String("event", event.String()))
+			log.Println("event is invalid", zap.String("tx_hash", txHash), zap.String("event", event.String()))
 			continue
 		}
 		eventType := gjson.Get(event.String(), "type")
@@ -108,34 +124,34 @@ func EventsToMessagePublications(contract string, txHash string, events []gjson.
 
 		attributes := gjson.Get(event.String(), "attributes")
 		if !attributes.Exists() {
-			log.Println("terra message event has no attributes", zap.String("tx_hash", txHash), zap.String("event", event.String()))
+			log.Println("message event has no attributes", zap.String("tx_hash", txHash), zap.String("event", event.String()))
 			continue
 		}
 		mappedAttributes := map[string]string{}
 		for _, attribute := range attributes.Array() {
 			if !attribute.IsObject() {
-				log.Println("terra event attribute is invalid", zap.String("tx_hash", txHash), zap.String("attribute", attribute.String()))
+				log.Println("event attribute is invalid", zap.String("tx_hash", txHash), zap.String("attribute", attribute.String()))
 				continue
 			}
 			keyBase := gjson.Get(attribute.String(), "key")
 			if !keyBase.Exists() {
-				log.Println("terra event attribute does not have key", zap.String("tx_hash", txHash), zap.String("attribute", attribute.String()))
+				log.Println("event attribute does not have key", zap.String("tx_hash", txHash), zap.String("attribute", attribute.String()))
 				continue
 			}
 			valueBase := gjson.Get(attribute.String(), "value")
 			if !valueBase.Exists() {
-				log.Println("terra event attribute does not have value", zap.String("tx_hash", txHash), zap.String("attribute", attribute.String()))
+				log.Println("event attribute does not have value", zap.String("tx_hash", txHash), zap.String("attribute", attribute.String()))
 				continue
 			}
 
 			key, err := base64.StdEncoding.DecodeString(keyBase.String())
 			if err != nil {
-				log.Println("terra event key attribute is invalid", zap.String("tx_hash", txHash), zap.String("key", keyBase.String()))
+				log.Println("event key attribute is invalid", zap.String("tx_hash", txHash), zap.String("key", keyBase.String()))
 				continue
 			}
 			value, err := base64.StdEncoding.DecodeString(valueBase.String())
 			if err != nil {
-				log.Println("terra event value attribute is invalid", zap.String("tx_hash", txHash), zap.String("key", keyBase.String()), zap.String("value", valueBase.String()))
+				log.Println("event value attribute is invalid", zap.String("tx_hash", txHash), zap.String("key", keyBase.String()), zap.String("value", valueBase.String()))
 				continue
 			}
 
@@ -147,9 +163,9 @@ func EventsToMessagePublications(contract string, txHash string, events []gjson.
 			mappedAttributes[string(key)] = string(value)
 		}
 
-		contractAddress, ok := mappedAttributes["contract_address"]
+		contractAddress, ok := mappedAttributes[contractAddressLogKey]
 		if !ok {
-			log.Println("terra wasm event without contract address field set", zap.String("event", event.String()))
+			log.Println("wasm event without contract address field set", zap.String("event", event.String()))
 			continue
 		}
 		// This is not a wormhole message
@@ -183,12 +199,12 @@ func EventsToMessagePublications(contract string, txHash string, events []gjson.
 			continue
 		}
 
-		senderAddress, err := terra.StringToAddress(sender)
+		senderAddress, err := cosmwasm.StringToAddress(sender)
 		if err != nil {
 			log.Println("cannot decode emitter hex", zap.String("tx_hash", txHash), zap.String("value", sender))
 			continue
 		}
-		txHashValue, err := terra.StringToHash(txHash)
+		txHashValue, err := cosmwasm.StringToHash(txHash)
 		if err != nil {
 			log.Println("cannot decode tx hash hex", zap.String("tx_hash", txHash), zap.String("value", txHash))
 			continue
@@ -219,7 +235,7 @@ func EventsToMessagePublications(contract string, txHash string, events []gjson.
 			Timestamp:        time.Unix(blockTimeInt, 0),
 			Nonce:            uint32(nonceInt),
 			Sequence:         sequenceInt,
-			EmitterChain:     vaa.ChainIDTerra,
+			EmitterChain:     chainID,
 			EmitterAddress:   senderAddress,
 			Payload:          payloadValue,
 			ConsistencyLevel: 0, // Instant finality
@@ -232,6 +248,34 @@ func EventsToMessagePublications(contract string, txHash string, events []gjson.
 func main() {
 	flag.Parse()
 
+	chainID, err := vaa.ChainIDFromString(*chain)
+	if err != nil {
+		log.Fatalf("Invalid chain: %v", err)
+	}
+
+	fcd, ok := fcdMap[chainID]
+	if !ok {
+		log.Fatal("Unsupported chain: no FCD defined")
+	}
+
+	coreContract, ok := coreContractMap[chainID]
+	if !ok {
+		log.Fatal("Unsupported chain: no core contract defined")
+	}
+
+	emitterAddress, ok := emitterMap[chainID]
+	if !ok {
+		log.Fatal("Unsupported chain: no emitter defined")
+	}
+	emitter := Emitter{chainID, emitterAddress}
+
+	// CosmWasm 1.0.0
+	contractAddressLogKey := "_contract_address"
+	if chainID == vaa.ChainIDTerra {
+		// CosmWasm <1.0.0
+		contractAddressLogKey = "contract_address"
+	}
+
 	ctx := context.Background()
 
 	missingMessages := make(map[uint64]bool)
@@ -242,11 +286,11 @@ func main() {
 		log.Fatalf("failed to get admin client: %v", err)
 	}
 
-	log.Printf("Requesting missing messages for %s", TerraEmitter.Emitter)
+	log.Printf("Requesting missing messages for %s", emitter.Emitter)
 
 	msg := nodev1.FindMissingMessagesRequest{
-		EmitterChain:   uint32(vaa.ChainIDTerra),
-		EmitterAddress: TerraEmitter.Emitter,
+		EmitterChain:   uint32(chainID),
+		EmitterAddress: emitter.Emitter,
 		RpcBackfill:    true,
 		BackfillNodes:  common.PublicRPCEndpoints,
 	}
@@ -265,14 +309,14 @@ func main() {
 	}
 
 	if len(msgs) == 0 {
-		log.Printf("No missing messages found for %s", TerraEmitter)
+		log.Printf("No missing messages found for %s", emitter)
 		return
 	}
 
 	lowest := msgs[0].Sequence
 	highest := msgs[len(msgs)-1].Sequence
 
-	log.Printf("Found %d missing messages for %s: %d - %d", len(msgs), TerraEmitter, lowest, highest)
+	log.Printf("Found %d missing messages for %s: %d - %d", len(msgs), emitter, lowest, highest)
 
 	for _, msg := range msgs {
 		missingMessages[msg.Sequence] = true
@@ -293,7 +337,7 @@ func main() {
 		client := &http.Client{
 			Timeout: time.Second * 5,
 		}
-		resp, err := client.Get(fmt.Sprintf("https://fcd.terra.dev/v1/txs?offset=%d&limit=100&account=%s", offset, *terraAddr))
+		resp, err := client.Get(fmt.Sprintf("%s/v1/txs?offset=%d&limit=100&account=%s", fcd, offset, coreContract))
 		if err != nil {
 			log.Fatalf("failed to get log: %v", err)
 			continue
@@ -323,7 +367,7 @@ func main() {
 			}
 			txhash := gjson.Get(tx.String(), "txhash")
 			// Get sequence number for tx
-			seqs, err := getSequencesForTxhash(txhash.String())
+			seqs, err := getSequencesForTxhash(txhash.String(), fcd, contractAddressLogKey, coreContract, emitter, chainID)
 			if err != nil {
 				log.Fatalln("Failed getting sequence number", err)
 				continue
@@ -338,13 +382,13 @@ func main() {
 				if *dryRun {
 					log.Println("Would have sent txhash", txhash, "to the guardian to re-observe")
 				} else {
-					txHashAsByteArray, err := terra.StringToHash(txhash.String())
+					txHashAsByteArray, err := cosmwasm.StringToHash(txhash.String())
 					if err != nil {
 						log.Fatalln("Couldn't decode the txhash", txhash)
 					} else {
 						_, err = admin.SendObservationRequest(ctx, &nodev1.SendObservationRequestRequest{
 							ObservationRequest: &gossipv1.ObservationRequest{
-								ChainId: uint32(vaa.ChainIDTerra),
+								ChainId: uint32(chainID),
 								TxHash:  txHashAsByteArray.Bytes(),
 							}})
 						if err != nil {

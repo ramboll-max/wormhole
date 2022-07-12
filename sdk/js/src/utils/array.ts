@@ -6,6 +6,7 @@ import {
   nativeStringToHexAlgorand,
   uint8ArrayToNativeStringAlgorand,
 } from "../algorand";
+import { buildTokenId } from "../cosmwasm/address";
 import { canonicalAddress, humanAddress, isNativeDenom } from "../terra";
 import {
   ChainId,
@@ -14,9 +15,11 @@ import {
   CHAIN_ID_NEAR,
   CHAIN_ID_SOLANA,
   CHAIN_ID_TERRA,
+  CHAIN_ID_TERRA2,
   CHAIN_ID_UNSET,
   coalesceChainId,
   isEVMChain,
+  isTerraChain,
 } from "./consts";
 
 /**
@@ -37,6 +40,9 @@ import {
  * space are not used on Terra otherwise, as cosmos addresses are 20 bytes wide.
  */
 export const isHexNativeTerra = (h: string): boolean => h.startsWith("01");
+
+const isLikely20ByteTerra = (h: string): boolean =>
+  h.startsWith("000000000000000000000000");
 
 export const nativeTerraHexToDenom = (h: string): string =>
   Buffer.from(stripZeros(hexToUint8Array(h.substr(2)))).toString("ascii");
@@ -64,12 +70,16 @@ export const tryUint8ArrayToNative = (
     return hexZeroPad(hexValue(a), 20);
   } else if (chainId === CHAIN_ID_SOLANA) {
     return new PublicKey(a).toString();
-  } else if (chainId === CHAIN_ID_TERRA) {
+  } else if (isTerraChain(chainId)) {
     const h = uint8ArrayToHex(a);
     if (isHexNativeTerra(h)) {
       return nativeTerraHexToDenom(h);
     } else {
-      return humanAddress(a.slice(-20)); // terra expects 20 bytes, not 32
+      if (chainId === CHAIN_ID_TERRA2 && !isLikely20ByteTerra(h)) {
+        // terra 2 has 32 byte addresses for contracts and 20 for wallets
+        return humanAddress(a);
+      }
+      return humanAddress(a.slice(-20));
     }
   } else if (chainId === CHAIN_ID_ALGORAND) {
     return uint8ArrayToNativeStringAlgorand(a);
@@ -179,6 +189,8 @@ export const tryNativeToHexString = (
     } else {
       return uint8ArrayToHex(zeroPad(canonicalAddress(address), 32));
     }
+  } else if (chainId === CHAIN_ID_TERRA2) {
+    return buildTokenId(address);
   } else if (chainId === CHAIN_ID_ALGORAND) {
     return nativeStringToHexAlgorand(address);
   } else if (chainId === CHAIN_ID_NEAR) {

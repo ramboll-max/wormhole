@@ -37,6 +37,12 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	cosmwasm "github.com/certusone/wormhole/node/pkg/terra"
+
+	"github.com/certusone/wormhole/node/pkg/algorand"
+
+	ipfslog "github.com/ipfs/go-log/v2"
 )
 
 var (
@@ -105,6 +111,18 @@ var (
 	sophonLCD      *string
 	sophonContract *string
 
+	//terraWS       *string
+	//terraLCD      *string
+	//terraContract *string
+	//
+	//terra2WS       *string
+	//terra2LCD      *string
+	//terra2Contract *string
+	//
+	//injectiveWS       *string
+	//injectiveLCD      *string
+	//injectiveContract *string
+	//
 	//algorandIndexerRPC   *string
 	//algorandIndexerToken *string
 	//algorandAlgodRPC     *string
@@ -209,6 +227,18 @@ func init() {
 	sophonLCD = NodeCmd.Flags().String("sophonLCD", "", "Path to sophon LCD service root for http calls")
 	sophonContract = NodeCmd.Flags().String("sophonContract", "", "Wormhole contract address on Sophon blockchain")
 
+	//terraWS = NodeCmd.Flags().String("terraWS", "", "Path to terrad root for websocket connection")
+	//terraLCD = NodeCmd.Flags().String("terraLCD", "", "Path to LCD service root for http calls")
+	//terraContract = NodeCmd.Flags().String("terraContract", "", "Wormhole contract address on Terra blockchain")
+	//
+	//terra2WS = NodeCmd.Flags().String("terra2WS", "", "Path to terrad root for websocket connection")
+	//terra2LCD = NodeCmd.Flags().String("terra2LCD", "", "Path to LCD service root for http calls")
+	//terra2Contract = NodeCmd.Flags().String("terra2Contract", "", "Wormhole contract address on Terra 2 blockchain")
+	//
+	//injectiveWS = NodeCmd.Flags().String("injectiveWS", "", "Path to root for Injective websocket connection")
+	//injectiveLCD = NodeCmd.Flags().String("injectiveLCD", "", "Path to LCD service root for Injective http calls")
+	//injectiveContract = NodeCmd.Flags().String("injectiveContract", "", "Wormhole contract address on Injective blockchain")
+	//
 	//algorandIndexerRPC = NodeCmd.Flags().String("algorandIndexerRPC", "", "Algorand Indexer RPC URL")
 	//algorandIndexerToken = NodeCmd.Flags().String("algorandIndexerToken", "", "Algorand Indexer access token")
 	//algorandAlgodRPC = NodeCmd.Flags().String("algorandAlgodRPC", "", "Algorand Algod RPC URL")
@@ -264,7 +294,7 @@ const devwarning = `
         +++++++++++++++++++++++++++++++++++++++++++++++++++
         |   NODE IS RUNNING IN INSECURE DEVELOPMENT MODE  |
         |                                                 |
-        |      Do not use -unsafeDevMode in prod.         |
+        |      Do not use --unsafeDevMode in prod.        |
         +++++++++++++++++++++++++++++++++++++++++++++++++++
 
 `
@@ -276,7 +306,18 @@ var NodeCmd = &cobra.Command{
 	Run:   runNode,
 }
 
+// This variable may be overridden by the -X linker flag to "dev" in which case
+// we enforce the --unsafeDevMode flag. Only development binaries/docker images
+// are distributed. Production binaries are required to be built from source by
+// guardians to reduce risk from a compromised builder.
+var Build = "prod"
+
 func runNode(cmd *cobra.Command, args []string) {
+	if Build == "dev" && !*unsafeDevMode {
+		fmt.Println("This is a development build. --unsafeDevMode must be enabled.")
+		os.Exit(1)
+	}
+
 	if *unsafeDevMode {
 		fmt.Print(devwarning)
 	}
@@ -322,27 +363,35 @@ func runNode(cmd *cobra.Command, args []string) {
 
 	// Register components for readiness checks.
 	readiness.RegisterComponent(common.ReadinessEthSyncing)
-	readiness.RegisterComponent(common.ReadinessSolanaSyncing)
-	readiness.RegisterComponent(common.ReadinessTerraSyncing)
-	if *testnetMode || *unsafeDevMode {
-		readiness.RegisterComponent(common.ReadinessAlgorandSyncing)
-	}
-	readiness.RegisterComponent(common.ReadinessBSCSyncing)
-	readiness.RegisterComponent(common.ReadinessPolygonSyncing)
-	readiness.RegisterComponent(common.ReadinessAvalancheSyncing)
-	readiness.RegisterComponent(common.ReadinessOasisSyncing)
-	readiness.RegisterComponent(common.ReadinessAuroraSyncing)
-	readiness.RegisterComponent(common.ReadinessFantomSyncing)
-	readiness.RegisterComponent(common.ReadinessKaruraSyncing)
-	readiness.RegisterComponent(common.ReadinessAcalaSyncing)
-	readiness.RegisterComponent(common.ReadinessKlaytnSyncing)
-	readiness.RegisterComponent(common.ReadinessCeloSyncing)
-
-	if *testnetMode {
-		readiness.RegisterComponent(common.ReadinessEthRopstenSyncing)
-		readiness.RegisterComponent(common.ReadinessMoonbeamSyncing)
-		readiness.RegisterComponent(common.ReadinessNeonSyncing)
-	}
+	//if *solanaWsRPC != "" {
+	//	readiness.RegisterComponent(common.ReadinessSolanaSyncing)
+	//}
+	//if *terraWS != "" {
+	//	readiness.RegisterComponent(common.ReadinessTerraSyncing)
+	//}
+	//if *terra2WS != "" {
+	//	readiness.RegisterComponent(common.ReadinessTerra2Syncing)
+	//}
+	//if *algorandIndexerRPC != "" {
+	//	readiness.RegisterComponent(common.ReadinessAlgorandSyncing)
+	//}
+	//readiness.RegisterComponent(common.ReadinessBSCSyncing)
+	//readiness.RegisterComponent(common.ReadinessPolygonSyncing)
+	//readiness.RegisterComponent(common.ReadinessAvalancheSyncing)
+	//readiness.RegisterComponent(common.ReadinessOasisSyncing)
+	//readiness.RegisterComponent(common.ReadinessAuroraSyncing)
+	//readiness.RegisterComponent(common.ReadinessFantomSyncing)
+	//readiness.RegisterComponent(common.ReadinessKaruraSyncing)
+	//readiness.RegisterComponent(common.ReadinessAcalaSyncing)
+	//readiness.RegisterComponent(common.ReadinessKlaytnSyncing)
+	//readiness.RegisterComponent(common.ReadinessCeloSyncing)
+	//
+	//if *testnetMode {
+	//	readiness.RegisterComponent(common.ReadinessEthRopstenSyncing)
+	//	readiness.RegisterComponent(common.ReadinessMoonbeamSyncing)
+	//	readiness.RegisterComponent(common.ReadinessNeonSyncing)
+	//	readiness.RegisterComponent(common.ReadinessInjectiveSyncing)
+	//}
 
 	if *statusAddr != "" {
 		// Use a custom routing instead of using http.DefaultServeMux directly to avoid accidentally exposing packages
@@ -490,6 +539,15 @@ func runNode(cmd *cobra.Command, args []string) {
 	//	if *neonContract == "" {
 	//		logger.Fatal("Please specify --neonContract")
 	//	}
+	//	if *injectiveWS == "" {
+	//		logger.Fatal("Please specify --injectiveWS")
+	//	}
+	//	if *injectiveLCD == "" {
+	//		logger.Fatal("Please specify --injectiveLCD")
+	//	}
+	//	if *injectiveContract == "" {
+	//		logger.Fatal("Please specify --injectiveContract")
+	//	}
 	//} else {
 	//	if *ethRopstenRPC != "" {
 	//		logger.Fatal("Please do not specify --ethRopstenRPC in non-testnet mode")
@@ -509,47 +567,73 @@ func runNode(cmd *cobra.Command, args []string) {
 	//	if *neonContract != "" && !*unsafeDevMode {
 	//		logger.Fatal("Please do not specify --neonContract")
 	//	}
+	//	if *injectiveWS != "" && !*unsafeDevMode {
+	//		logger.Fatal("Please do not specify --injectiveWS")
+	//	}
+	//	if *injectiveLCD != "" && !*unsafeDevMode {
+	//		logger.Fatal("Please do not specify --injectiveLCD")
+	//	}
+	//	if *injectiveContract != "" && !*unsafeDevMode {
+	//		logger.Fatal("Please do not specify --injectiveContract")
+	//	}
 	//}
 	if *nodeName == "" {
 		logger.Fatal("Please specify --nodeName")
 	}
 
-	//if *solanaContract == "" {
-	//	logger.Fatal("Please specify --solanaContract")
-	//}
-	//if *solanaWsRPC == "" {
-	//	logger.Fatal("Please specify --solanaWsUrl")
-	//}
-	//if *solanaRPC == "" {
-	//	logger.Fatal("Please specify --solanaUrl")
+	//// Solana, Terra Classic, Terra 2, and Algorand are optional in devnet
+	//if !*unsafeDevMode {
+	//
+	//	if *solanaContract == "" {
+	//		logger.Fatal("Please specify --solanaContract")
+	//	}
+	//	if *solanaWsRPC == "" {
+	//		logger.Fatal("Please specify --solanaWsUrl")
+	//	}
+	//	if *solanaRPC == "" {
+	//		logger.Fatal("Please specify --solanaUrl")
+	//	}
+	//
+	//	if *terraWS == "" {
+	//		logger.Fatal("Please specify --terraWS")
+	//	}
+	//	if *terraLCD == "" {
+	//		logger.Fatal("Please specify --terraLCD")
+	//	}
+	//	if *terraContract == "" {
+	//		logger.Fatal("Please specify --terraContract")
+	//	}
+	//
+	//	if *terra2WS == "" {
+	//		logger.Fatal("Please specify --terra2WS")
+	//	}
+	//	if *terra2LCD == "" {
+	//		logger.Fatal("Please specify --terra2LCD")
+	//	}
+	//	if *terra2Contract == "" {
+	//		logger.Fatal("Please specify --terra2Contract")
+	//	}
+	//
+	//	if *testnetMode {
+	//		if *algorandIndexerRPC == "" {
+	//			logger.Fatal("Please specify --algorandIndexerRPC")
+	//		}
+	//		if *algorandIndexerToken == "" {
+	//			logger.Fatal("Please specify --algorandIndexerToken")
+	//		}
+	//		if *algorandAlgodRPC == "" {
+	//			logger.Fatal("Please specify --algorandAlgodRPC")
+	//		}
+	//		if *algorandAlgodToken == "" {
+	//			logger.Fatal("Please specify --algorandAlgodToken")
+	//		}
+	//		if *algorandAppID == 0 {
+	//			logger.Fatal("Please specify --algorandAppID")
+	//		}
+	//	}
+	//
 	//}
 
-	//if *terraWS == "" {
-	//	logger.Fatal("Please specify --terraWS")
-	//}
-	//if *terraLCD == "" {
-	//	logger.Fatal("Please specify --terraLCD")
-	//}
-	//if *terraContract == "" {
-	//	logger.Fatal("Please specify --terraContract")
-	//}
-	//if *testnetMode || *unsafeDevMode {
-	//	if *algorandIndexerRPC == "" {
-	//		logger.Fatal("Please specify --algorandIndexerRPC")
-	//	}
-	//	if *algorandIndexerToken == "" {
-	//		logger.Fatal("Please specify --algorandIndexerToken")
-	//	}
-	//	if *algorandAlgodRPC == "" {
-	//		logger.Fatal("Please specify --algorandAlgodRPC")
-	//	}
-	//	if *algorandAlgodToken == "" {
-	//		logger.Fatal("Please specify --algorandAlgodToken")
-	//	}
-	//	if *algorandAppID == 0 {
-	//		logger.Fatal("Please specify --algorandAppID")
-	//	}
-	//}
 	if *bigTablePersistenceEnabled {
 		if *bigTableGCPProject == "" {
 			logger.Fatal("Please specify --bigTableGCPProject")
@@ -682,8 +766,9 @@ func runNode(cmd *cobra.Command, args []string) {
 	// Observation request channel for each chain supporting observation requests.
 	//chainObsvReqC[vaa.ChainIDSolana] = make(chan *gossipv1.ObservationRequest)
 	chainObsvReqC[vaa.ChainIDEthereum] = make(chan *gossipv1.ObservationRequest)
-	chainObsvReqC[vaa.ChainIDTerra] = make(chan *gossipv1.ObservationRequest)
 	chainObsvReqC[vaa.ChainIDSophon] = make(chan *gossipv1.ObservationRequest)
+	//chainObsvReqC[vaa.ChainIDTerra] = make(chan *gossipv1.ObservationRequest)
+	//chainObsvReqC[vaa.ChainIDTerra2] = make(chan *gossipv1.ObservationRequest)
 	//chainObsvReqC[vaa.ChainIDBSC] = make(chan *gossipv1.ObservationRequest)
 	//chainObsvReqC[vaa.ChainIDPolygon] = make(chan *gossipv1.ObservationRequest)
 	//chainObsvReqC[vaa.ChainIDAvalanche] = make(chan *gossipv1.ObservationRequest)
@@ -701,6 +786,7 @@ func runNode(cmd *cobra.Command, args []string) {
 	//	chainObsvReqC[vaa.ChainIDMoonbeam] = make(chan *gossipv1.ObservationRequest)
 	//	chainObsvReqC[vaa.ChainIDNeon] = make(chan *gossipv1.ObservationRequest)
 	//	chainObsvReqC[vaa.ChainIDEthereumRopsten] = make(chan *gossipv1.ObservationRequest)
+	//	chainObsvReqC[vaa.ChainIDInjective] = make(chan *gossipv1.ObservationRequest)
 	//}
 
 	// Multiplex observation requests to the appropriate chain
@@ -883,11 +969,20 @@ func runNode(cmd *cobra.Command, args []string) {
 		//	}
 		//}
 
-		// Start Terra watcher only if configured
-		//logger.Info("Starting Terra watcher")
-		//if err := supervisor.Run(ctx, "terrawatch",
-		//	terra.NewWatcher(*terraWS, *terraLCD, *terraContract, lockC, setC, chainObsvReqC[vaa.ChainIDTerra]).Run); err != nil {
-		//	return err
+		//if *terraWS != "" {
+		//	logger.Info("Starting Terra watcher")
+		//	if err := supervisor.Run(ctx, "terrawatch",
+		//		cosmwasm.NewWatcher(*terraWS, *terraLCD, *terraContract, lockC, setC, chainObsvReqC[vaa.ChainIDTerra], common.ReadinessTerraSyncing, vaa.ChainIDTerra).Run); err != nil {
+		//		return err
+		//	}
+		//}
+		//
+		//if *terra2WS != "" {
+		//	logger.Info("Starting Terra 2 watcher")
+		//	if err := supervisor.Run(ctx, "terra2watch",
+		//		cosmwasm.NewWatcher(*terra2WS, *terra2LCD, *terra2Contract, lockC, setC, chainObsvReqC[vaa.ChainIDTerra2], common.ReadinessTerra2Syncing, vaa.ChainIDTerra2).Run); err != nil {
+		//		return err
+		//	}
 		//}
 
 		// Start Sophon watcher only if configured
@@ -897,21 +992,31 @@ func runNode(cmd *cobra.Command, args []string) {
 			return err
 		}
 
-		//if *testnetMode || *unsafeDevMode {
+		//if *testnetMode {
+		//	logger.Info("Starting Injective watcher")
+		//	if err := supervisor.Run(ctx, "injectivewatch",
+		//		cosmwasm.NewWatcher(*injectiveWS, *injectiveLCD, *injectiveContract, lockC, setC, chainObsvReqC[vaa.ChainIDInjective], common.ReadinessInjectiveSyncing, vaa.ChainIDInjective).Run); err != nil {
+		//		return err
+		//	}
+		//}
+
+		//if *algorandIndexerRPC != "" {
 		//	if err := supervisor.Run(ctx, "algorandwatch",
 		//		algorand.NewWatcher(*algorandIndexerRPC, *algorandIndexerToken, *algorandAlgodRPC, *algorandAlgodToken, *algorandAppID, lockC, setC, chainObsvReqC[vaa.ChainIDAlgorand]).Run); err != nil {
 		//		return err
 		//	}
 		//}
 		//
-		//if err := supervisor.Run(ctx, "solwatch-confirmed",
-		//	solana.NewSolanaWatcher(*solanaWsRPC, *solanaRPC, solAddress, lockC, nil, rpc.CommitmentConfirmed).Run); err != nil {
-		//	return err
-		//}
+		//if *solanaWsRPC != "" {
+		//	if err := supervisor.Run(ctx, "solwatch-confirmed",
+		//		solana.NewSolanaWatcher(*solanaWsRPC, *solanaRPC, solAddress, lockC, nil, rpc.CommitmentConfirmed).Run); err != nil {
+		//		return err
+		//	}
 		//
-		//if err := supervisor.Run(ctx, "solwatch-finalized",
-		//	solana.NewSolanaWatcher(*solanaWsRPC, *solanaRPC, solAddress, lockC, chainObsvReqC[vaa.ChainIDSolana], rpc.CommitmentFinalized).Run); err != nil {
-		//	return err
+		//	if err := supervisor.Run(ctx, "solwatch-finalized",
+		//		solana.NewSolanaWatcher(*solanaWsRPC, *solanaRPC, solAddress, lockC, chainObsvReqC[vaa.ChainIDSolana], rpc.CommitmentFinalized).Run); err != nil {
+		//		return err
+		//	}
 		//}
 
 		p := processor.NewProcessor(ctx,

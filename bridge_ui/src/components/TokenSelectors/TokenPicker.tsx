@@ -251,7 +251,7 @@ export default function TokenPicker({
     account: NFTParsedTokenAccount;
   }) => JSX.Element;
   onChange: (newValue: NFTParsedTokenAccount | null) => Promise<void>;
-  isValidAddress?: (address: string) => boolean;
+  isValidAddress?: (address: string, chainId: ChainId) => boolean;
   getAddress?: (
     address: string,
     tokenId?: string
@@ -418,7 +418,7 @@ export default function TokenPicker({
     }
     setLoadingError("");
     let cancelled = false;
-    if (isValidAddress(holderString)) {
+    if (isValidAddress(holderString, chainId)) {
       const option = localFind(holderString, tokenIdHolderString);
       if (option) {
         handleSelectOption(option);
@@ -457,6 +457,7 @@ export default function TokenPicker({
     localFind,
     tokenIdHolderString,
     useTokenId,
+    chainId,
   ]);
 
   //TODO reset button
@@ -562,6 +563,7 @@ export default function TokenPicker({
                       }
                       disabled={getIsTokenTransferDisabled(
                         chainId,
+                        targetChain,
                         option.mintKey
                       )}
                     >
@@ -588,7 +590,11 @@ export default function TokenPicker({
                   key={
                     option.publicKey + option.mintKey + (option.tokenId || "")
                   }
-                  disabled={getIsTokenTransferDisabled(chainId, option.mintKey)}
+                  disabled={getIsTokenTransferDisabled(
+                    chainId,
+                    targetChain,
+                    option.mintKey
+                  )}
                 >
                   <RenderOption account={option} />
                 </ListItem>

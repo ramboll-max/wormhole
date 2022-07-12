@@ -99,7 +99,6 @@ export async function transferFromEth(
           amount,
           recipientChainId,
           recipientAddress,
-          relayerFee,
           createNonce(),
           payload,
           overrides
@@ -135,7 +134,6 @@ export async function transferFromEthNative(
       : await bridge.wrapAndTransferETHWithPayload(
           recipientChainId,
           recipientAddress,
-          relayerFee,
           createNonce(),
           payload,
           {
@@ -309,7 +307,6 @@ export async function transferNativeSol(
           WSOL_ADDRESS,
           nonce,
           amount.valueOf(),
-          relayerFee.valueOf(),
           targetAddress,
           coalesceChainId(targetChain),
           payload
@@ -410,7 +407,6 @@ export async function transferFromSolana(
             mintAddress,
             nonce,
             amount.valueOf(),
-            relayerFee.valueOf(),
             targetAddress,
             coalesceChainId(targetChain),
             payload
@@ -440,7 +436,6 @@ export async function transferFromSolana(
           originAddress as Uint8Array, // checked by throw
           nonce,
           amount.valueOf(),
-          relayerFee.valueOf(),
           targetAddress,
           coalesceChainId(targetChain),
           payload

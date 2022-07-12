@@ -128,6 +128,10 @@ func (c ChainID) String() string {
 		return "moonbeam"
 	case ChainIDNeon:
 		return "neon"
+	case ChainIDTerra2:
+		return "terra2"
+	case ChainIDInjective:
+		return "injective"
 
 	case ChainIDSophon:
 		return "sophon"
@@ -174,6 +178,10 @@ func ChainIDFromString(s string) (ChainID, error) {
 		return ChainIDMoonbeam, nil
 	case "neon":
 		return ChainIDNeon, nil
+	case "terra2":
+		return ChainIDTerra2, nil
+	case "injective":
+		return ChainIDInjective, nil
 
 	case "sophon":
 		return ChainIDSophon, nil
@@ -216,6 +224,10 @@ const (
 	ChainIDMoonbeam ChainID = 16
 	// ChainIDNeon is the ChainID of Neon
 	ChainIDNeon ChainID = 17
+	// ChainIDTerra2 is the ChainID of Terra 2
+	ChainIDTerra2 ChainID = 18
+	// ChainIDInjective is the ChainID of Injective
+	ChainIDInjective ChainID = 19
 
 	// ChainIDEthereumRopsten is the ChainID of Ethereum Ropsten
 	ChainIDEthereumRopsten ChainID = 10001
@@ -246,6 +258,10 @@ const (
 )
 
 // Unmarshal deserializes the binary representation of a VAA
+//
+// WARNING: Unmarshall will truncate payloads at 1000 bytes, this is done mainly to avoid denial of service
+//   - If you need to access the full payload, consider parsing VAA from Bytes instead of Unmarshal
+//
 func Unmarshal(data []byte) (*VAA, error) {
 	if len(data) < minVAALength {
 		return nil, fmt.Errorf("VAA is too short")
@@ -319,6 +335,7 @@ func Unmarshal(data []byte) (*VAA, error) {
 	if err != nil || n == 0 {
 		return nil, fmt.Errorf("failed to read payload [%d]: %w", n, err)
 	}
+
 	v.Payload = payload[:n]
 
 	return v, nil

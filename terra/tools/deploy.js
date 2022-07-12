@@ -1,7 +1,9 @@
 import 'dotenv/config'
 import { LCDClient, MnemonicKey } from "@terra-money/terra.js";
 import {
+  StdFee,
   MsgInstantiateContract,
+  MsgExecuteContract,
   MsgStoreCode,
 } from "@terra-money/terra.js";
 import { readFileSync, readdirSync } from "fs";
@@ -60,17 +62,16 @@ if (unexpected_artifacts.length) {
 }
 
 /* Set up terra client & wallet */
-const lcdURL = process.env.LCD_URL;
-const chainID = process.env.CHAIN_ID;
+
 const terra = new LCDClient({
-  URL: lcdURL,
-  chainID: chainID,
+  URL: "http://localhost:1317",
+  chainID: "localterra",
 });
 
-const mnemonic = process.env.MNEMONIC;
 const wallet = terra.wallet(
   new MnemonicKey({
-    mnemonic:mnemonic,
+    mnemonic:
+      "notice oak worry limit wrap speak medal online prefer cluster roof addict wrist behave treat actual wasp year salad speed social layer crew genius",
   })
 );
 
@@ -112,8 +113,9 @@ console.log(codeIds);
  * */
 
 // Governance constants defined by the Wormhole spec.
-const govChain = Number.parseInt(process.env.INIT_GOV_CHAIN_ID);
-const govAddress = process.env.INIT_GOV_ADDRESS;
+const govChain = 1;
+const govAddress =
+  "0000000000000000000000000000000000000000000000000000000000000004";
 
 async function instantiate(contract, inst_msg) {
   var address;
@@ -184,6 +186,108 @@ addresses["mock.wasm"] = await instantiate("cw20_base.wasm", {
   ],
   mint: null,
 });
+
+addresses["nft_bridge.wasm"] = await instantiate("nft_bridge.wasm", {
+  gov_chain: govChain,
+  gov_address: Buffer.from(govAddress, "hex").toString("base64"),
+  wormhole_contract: addresses["wormhole.wasm"],
+  wrapped_asset_code_id: codeIds["cw721_wrapped.wasm"],
+});
+
+addresses["cw721_base.wasm"] = await instantiate("cw721_base.wasm", {
+  name: "MOCK",
+  symbol: "MCK",
+  minter: wallet.key.accAddress,
+});
+
+async function mint_cw721(token_id, token_uri) {
+  await wallet
+    .createAndSignTx({
+      msgs: [
+        new MsgExecuteContract(
+          wallet.key.accAddress,
+          addresses["cw721_base.wasm"],
+          {
+            mint: {
+              token_id: token_id.toString(),
+              owner: wallet.key.accAddress,
+              token_uri: token_uri,
+            },
+          },
+          { uluna: 1000 }
+        ),
+      ],
+      memo: "",
+      fee: new StdFee(2000000, {
+        uluna: "100000",
+      }),
+    })
+    .then((tx) => terra.tx.broadcast(tx));
+  console.log(
+    `Minted NFT with token_id ${token_id} at ${addresses["cw721_base.wasm"]}`
+  );
+}
+
+await mint_cw721(
+  0,
+  "https://ixmfkhnh2o4keek2457f2v2iw47cugsx23eynlcfpstxihsay7nq.arweave.net/RdhVHafTuKIRWud-XVdItz4qGlfWyYasRXyndB5Ax9s/"
+);
+await mint_cw721(
+  1,
+  "https://portal.neondistrict.io/api/getNft/158456327500392944014123206890"
+);
+
+/* Registrations: tell the bridge contracts to know about each other */
+
+const contract_registrations = {
+  "token_bridge_terra.wasm": [
+    // Solana
+    process.env.REGISTER_SOL_TOKEN_BRIDGE_VAA,
+    // Ethereum
+    process.env.REGISTER_ETH_TOKEN_BRIDGE_VAA,
+    // BSC
+    process.env.REGISTER_BSC_TOKEN_BRIDGE_VAA,
+    // ALGO
+    process.env.REGISTER_ALGO_TOKEN_BRIDGE_VAA,
+    // TERRA2
+    process.env.REGISTER_TERRA2_TOKEN_BRIDGE_VAA,
+  ],
+  "nft_bridge.wasm": [
+    // Solana
+    process.env.REGISTER_SOL_NFT_BRIDGE_VAA,
+    // Ethereum
+    process.env.REGISTER_ETH_NFT_BRIDGE_VAA,
+  ],
+};
+
+for (const [contract, registrations] of Object.entries(
+  contract_registrations
+)) {
+  console.log(`Registering chains for ${contract}:`);
+  for (const registration of registrations) {
+    await wallet
+      .createAndSignTx({
+        msgs: [
+          new MsgExecuteContract(
+            wallet.key.accAddress,
+            addresses[contract],
+            {
+              submit_vaa: {
+                data: Buffer.from(registration, "hex").toString("base64"),
+              },
+            },
+            { uluna: 1000 }
+          ),
+        ],
+        memo: "",
+        fee: new StdFee(2000000, {
+          uluna: "100000",
+        }),
+      })
+      .then((tx) => terra.tx.broadcast(tx))
+      .then((rs) => console.log(rs));
+  }
+}
 
 // Terra addresses are "human-readable", but for cross-chain registrations, we
 // want the "canonical" version

@@ -4,7 +4,7 @@ import {
   CHAIN_ID_ALGORAND,
   CHAIN_ID_KARURA,
   CHAIN_ID_SOLANA,
-  CHAIN_ID_TERRA,
+  CHAIN_ID_TERRA2,
   getEmitterAddressAlgorand,
   getEmitterAddressEth,
   getEmitterAddressSolana,
@@ -14,12 +14,14 @@ import {
   hexToUint8Array,
   importCoreWasm,
   isEVMChain,
+  isTerraChain,
   parseNFTPayload,
   parseSequenceFromLogAlgorand,
   parseSequenceFromLogEth,
   parseSequenceFromLogSolana,
   parseSequenceFromLogTerra,
   parseTransferPayload,
+  TerraChainId,
   uint8ArrayToHex,
 } from "@certusone/wormhole-sdk";
 import {
@@ -67,12 +69,12 @@ import {
   SOLANA_HOST,
   SOL_NFT_BRIDGE_ADDRESS,
   SOL_TOKEN_BRIDGE_ADDRESS,
-  TERRA_HOST,
-  TERRA_TOKEN_BRIDGE_ADDRESS,
+  getTerraConfig,
   WORMHOLE_RPC_HOSTS,
 } from "../utils/consts";
 import { getSignedVAAWithRetry } from "../utils/getSignedVAAWithRetry";
 import parseError from "../utils/parseError";
+import { queryExternalId } from "../utils/terra";
 import ButtonWithLoader from "./ButtonWithLoader";
 import ChainSelect from "./ChainSelect";
 import KeyAndBalance from "./KeyAndBalance";
@@ -201,19 +203,19 @@ async function solana(tx: string, enqueueSnackbar: any, nft: boolean) {
   }
 }
 
-async function terra(tx: string, enqueueSnackbar: any) {
+async function terra(tx: string, enqueueSnackbar: any, chainId: TerraChainId) {
   try {
-    const lcd = new LCDClient(TERRA_HOST);
+    const lcd = new LCDClient(getTerraConfig(chainId));
     const info = await lcd.tx.txInfo(tx);
     const sequence = parseSequenceFromLogTerra(info);
     if (!sequence) {
       throw new Error("Sequence not found");
     }
     const emitterAddress = await getEmitterAddressTerra(
-      TERRA_TOKEN_BRIDGE_ADDRESS
+      getTokenBridgeAddressForChain(chainId)
     );
     const { vaaBytes } = await getSignedVAAWithRetry(
-      CHAIN_ID_TERRA,
+      chainId,
       emitterAddress,
       sequence,
       WORMHOLE_RPC_HOSTS.length
@@ -378,6 +380,7 @@ export default function Recovery() {
   const [recoverySourceTxError, setRecoverySourceTxError] = useState("");
   const [recoverySignedVAA, setRecoverySignedVAA] = useState("");
   const [recoveryParsedVAA, setRecoveryParsedVAA] = useState<any>(null);
+  const [terra2TokenId, setTerra2TokenId] = useState("");
   const { isReady, statusMessage } = useIsWalletReady(recoverySourceChain);
   const walletConnectError =
     isEVMChain(recoverySourceChain) && !isReady ? statusMessage : "";
@@ -397,6 +400,21 @@ export default function Recovery() {
       return null;
     }
   }, [recoveryParsedVAA, isNFT]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (parsedPayload && parsedPayload.targetChain === CHAIN_ID_TERRA2) {
+      (async () => {
+        const tokenId = await queryExternalId(parsedPayload.originAddress);
+        if (!cancelled) {
+          setTerra2TokenId(tokenId || "");
+        }
+      })();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [parsedPayload]);
 
   const { search } = useLocation();
   const query = useMemo(() => new URLSearchParams(search), [search]);
@@ -467,11 +485,16 @@ export default function Recovery() {
             }
           }
         })();
-      } else if (recoverySourceChain === CHAIN_ID_TERRA) {
+      } else if (isTerraChain(recoverySourceChain)) {
         setRecoverySourceTxError("");
         setRecoverySourceTxIsLoading(true);
+        setTerra2TokenId("");
         (async () => {
-          const { vaa, error } = await terra(recoverySourceTx, enqueueSnackbar);
+          const { vaa, error } = await terra(
+            recoverySourceTx,
+            enqueueSnackbar,
+            recoverySourceChain
+          );
           if (!cancelled) {
             setRecoverySourceTxIsLoading(false);
             if (vaa) {
@@ -785,12 +808,14 @@ export default function Recovery() {
                   label="Origin Token Address"
                   disabled
                   value={
-                    (parsedPayload &&
-                      hexToNativeAssetString(
-                        parsedPayload.originAddress,
-                        parsedPayload.originChain
-                      )) ||
-                    ""
+                    parsedPayload
+                      ? parsedPayload.targetChain === CHAIN_ID_TERRA2
+                        ? terra2TokenId
+                        : hexToNativeAssetString(
+                            parsedPayload.originAddress,
+                            parsedPayload.originChain
+                          ) || ""
+                      : ""
                   }
                   fullWidth
                   margin="normal"

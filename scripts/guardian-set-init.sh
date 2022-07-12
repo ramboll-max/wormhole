@@ -15,7 +15,6 @@ ethFile="./scripts/.env.0x" # for "0x" prefixed data, for ethereum scripts
 # copy the eth defaults so we can override just the things we need
 cp ./ethereum/.env.test $ethFile
 
-
 # function for updating or inserting a KEY=value pair in a file.
 function upsert_env_file {
     file=${1} # file will be created if it does not exist.
@@ -25,7 +24,13 @@ function upsert_env_file {
     # replace the value if it exists, else, append it to the file
     if [[ -f $file ]] && grep -q "^$key=" $file; then
         # file has the key, update it:
-        sed -i "/^$key=/s/=.*/=$new_value/" $file
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # on macOS's sed, the -i flag needs the '' argument to not create
+            # backup files
+            sed -i '' -e "/^$key=/s/=.*/=$new_value/" $file
+        else
+            sed -i -e "/^$key=/s/=.*/=$new_value/" $file
+        fi
     else
         # file does not have the key, add it:
         echo "$key=$new_value" >> $file
@@ -37,6 +42,10 @@ if ! type -p jq; then
     echo "ERROR: jq is not installed"! >&2
     exit 1
 fi
+
+# Rebuild the CLI binary if needed. If the binary is already up to date, this
+# command finishes in a fraction of a second.
+make build -C ./clients/js
 
 
 # 1) guardian public keys - used as the inital guardian set when initializing contracts.
@@ -76,32 +85,27 @@ ethTokenBridge=$(jq --raw-output '.chains."2".contracts.tokenBridgeEmitterAddres
 terraTokenBridge=$(jq --raw-output '.chains."3".contracts.tokenBridgeEmitterAddress' $addressesJson)
 bscTokenBridge=$(jq --raw-output '.chains."4".contracts.tokenBridgeEmitterAddress' $addressesJson)
 algoTokenBridge=$(jq --raw-output '.chains."8".contracts.tokenBridgeEmitterAddress' $addressesJson)
+terra2TokenBridge=$(jq --raw-output '.chains."18".contracts.tokenBridgeEmitterAddress' $addressesJson)
 
 solNFTBridge=$(jq --raw-output '.chains."1".contracts.nftBridgeEmitterAddress' $addressesJson)
 ethNFTBridge=$(jq --raw-output '.chains."2".contracts.nftBridgeEmitterAddress' $addressesJson)
 terraNFTBridge=$(jq --raw-output '.chains."3".contracts.nftBridgeEmitterAddress' $addressesJson)
 
-
 # 4) create token bridge registration VAAs
-echo "generating contract registration VAAs for token bridges"
-# fetch dependencies for the clients/token_bridge script that generates token bridge registration VAAs
-if [[ ! -d ./clients/js/node_modules ]]; then
-    echo "going to install node modules in clients/js"
-    npm ci --prefix clients/js
-fi
-# invoke clients/token_bridge commands to create registration VAAs
-solTokenBridgeVAA=$(npm --prefix clients/js start --silent -- generate registration -m TokenBridge -c solana -a ${solTokenBridge} -g ${guardiansPrivateCSV})
-ethTokenBridgeVAA=$(npm --prefix clients/js start --silent -- generate registration -m TokenBridge -c ethereum -a ${ethTokenBridge} -g ${guardiansPrivateCSV} )
-terraTokenBridgeVAA=$(npm --prefix clients/js start --silent -- generate registration -m TokenBridge -c terra -a ${terraTokenBridge} -g ${guardiansPrivateCSV})
-bscTokenBridgeVAA=$(npm --prefix clients/js start --silent -- generate registration -m TokenBridge -c bsc -a ${bscTokenBridge} -g ${guardiansPrivateCSV})
-algoTokenBridgeVAA=$(npm --prefix clients/js start --silent -- generate registration -m TokenBridge -c algorand -a ${algoTokenBridge} -g ${guardiansPrivateCSV})
+# invoke CLI commands to create registration VAAs
+solTokenBridgeVAA=$(node ./clients/js/build/main.js generate registration -m TokenBridge -c solana -a ${solTokenBridge} -g ${guardiansPrivateCSV})
+ethTokenBridgeVAA=$(node ./clients/js/build/main.js generate registration -m TokenBridge -c ethereum -a ${ethTokenBridge} -g ${guardiansPrivateCSV} )
+terraTokenBridgeVAA=$(node ./clients/js/build/main.js generate registration -m TokenBridge -c terra -a ${terraTokenBridge} -g ${guardiansPrivateCSV})
+bscTokenBridgeVAA=$(node ./clients/js/build/main.js generate registration -m TokenBridge -c bsc -a ${bscTokenBridge} -g ${guardiansPrivateCSV})
+algoTokenBridgeVAA=$(node ./clients/js/build/main.js generate registration -m TokenBridge -c algorand -a ${algoTokenBridge} -g ${guardiansPrivateCSV})
+terra2TokenBridgeVAA=$(node ./clients/js/build/main.js generate registration -m TokenBridge -c terra2 -a ${terra2TokenBridge} -g ${guardiansPrivateCSV})
 
 
 # 5) create nft bridge registration VAAs
 echo "generating contract registration VAAs for nft bridges"
-solNFTBridgeVAA=$(npm --prefix clients/js start --silent -- generate registration -m NFTBridge -c solana -a ${solNFTBridge} -g ${guardiansPrivateCSV})
-ethNFTBridgeVAA=$(npm --prefix clients/js start --silent -- generate registration -m NFTBridge -c ethereum -a ${ethNFTBridge} -g ${guardiansPrivateCSV})
-terraNFTBridgeVAA=$(npm --prefix clients/js start --silent -- generate registration -m NFTBridge -c terra -a ${terraNFTBridge} -g ${guardiansPrivateCSV})
+solNFTBridgeVAA=$(node ./clients/js/build/main.js generate registration -m NFTBridge -c solana -a ${solNFTBridge} -g ${guardiansPrivateCSV})
+ethNFTBridgeVAA=$(node ./clients/js/build/main.js generate registration -m NFTBridge -c ethereum -a ${ethNFTBridge} -g ${guardiansPrivateCSV})
+terraNFTBridgeVAA=$(node ./clients/js/build/main.js generate registration -m NFTBridge -c terra -a ${terraNFTBridge} -g ${guardiansPrivateCSV})
 
 
 
@@ -113,6 +117,7 @@ ethTokenBridge="REGISTER_ETH_TOKEN_BRIDGE_VAA"
 terraTokenBridge="REGISTER_TERRA_TOKEN_BRIDGE_VAA"
 bscTokenBridge="REGISTER_BSC_TOKEN_BRIDGE_VAA"
 algoTokenBridge="REGISTER_ALGO_TOKEN_BRIDGE_VAA"
+terra2TokenBridge="REGISTER_TERRA2_TOKEN_BRIDGE_VAA"
 
 solNFTBridge="REGISTER_SOL_NFT_BRIDGE_VAA"
 ethNFTBridge="REGISTER_ETH_NFT_BRIDGE_VAA"
@@ -151,6 +156,10 @@ upsert_env_file $envFile $bscTokenBridge $bscTokenBridgeVAA
 upsert_env_file $ethFile $algoTokenBridge $algoTokenBridgeVAA
 upsert_env_file $envFile $algoTokenBridge $algoTokenBridgeVAA
 
+# terra2 token bridge
+upsert_env_file $ethFile $terra2TokenBridge $terra2TokenBridgeVAA
+upsert_env_file $envFile $terra2TokenBridge $terra2TokenBridgeVAA
+
 
 # 7) copy the local .env file to the solana & terra dirs, if the script is running on the host machine
 # chain dirs will not exist if running in docker for Tilt, only if running locally. check before copying.
@@ -161,7 +170,7 @@ if [[ -d ./ethereum ]]; then
 fi
 
 # copy the hex envFile to each of the non-EVM chains
-for envDest in ./solana/.env ./terra/tools/.env ./algorand/.env; do
+for envDest in ./solana/.env ./terra/tools/.env ./cosmwasm/tools/.env ./algorand/.env; do
     dirname=$(dirname $envDest)
     if [[ -d "$dirname" ]]; then
         echo "copying $envFile to $envDest"

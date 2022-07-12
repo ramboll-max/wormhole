@@ -25,15 +25,13 @@ module.exports = {
       port: 8545,
       network_id: "*",
     },
-    mainnet: {
+    ethereum: {
       provider: () =>
         new HDWalletProvider(
           process.env.MNEMONIC,
-          `https://mainnet.infura.io/v3/` + process.env.INFURA_KEY
+          "https://rpc.ankr.com/eth",
         ),
       network_id: 1,
-      gas: 10000000,
-      gasPrice: 191000000000,
       confirmations: 1,
       timeoutBlocks: 200,
       skipDryRun: false,
@@ -42,7 +40,7 @@ module.exports = {
       provider: () =>
         new HDWalletProvider(
           process.env.MNEMONIC,
-          `https://rinkeby.infura.io/v3/` + process.env.INFURA_KEY
+          "https://rpc.ankr.com/eth_rinkeby",
         ),
       network_id: 4,
       gas: 5500000,
@@ -50,18 +48,16 @@ module.exports = {
       timeoutBlocks: 200,
       skipDryRun: true,
     },
-    goerli: {
+    ethereum_testnet: {
       provider: () => {
         return new HDWalletProvider(
           process.env.MNEMONIC,
-          "https://goerli.infura.io/v3/" + process.env.INFURA_KEY
+          "https://rpc.ankr.com/eth_goerli"
         );
       },
       network_id: "5",
-      gas: 4465030,
-      gasPrice: 10000000000,
     },
-    binance: {
+    bsc: {
       provider: () => {
         return new HDWalletProvider(
           process.env.MNEMONIC,
@@ -72,15 +68,13 @@ module.exports = {
       gas: 70000000,
       gasPrice: 8000000000,
     },
-    binance_testnet: {
+    bsc_testnet: {
       provider: () =>
         new HDWalletProvider(
           process.env.MNEMONIC,
           "https://data-seed-prebsc-1-s1.binance.org:8545/"
         ),
       network_id: "97",
-      gas: 70000000,
-      gasPrice: 8000000000,
     },
     polygon: {
       provider: () => {
@@ -93,11 +87,11 @@ module.exports = {
       gas: 10000000,
       gasPrice: 700000000000,
     },
-    mumbai: {
+    polygon_testnet: {
       provider: () => {
         return new HDWalletProvider(
           process.env.MNEMONIC,
-          "https://polygon-mumbai.infura.io/v3/" + process.env.INFURA_KEY
+          "https://rpc.ankr.com/polygon_mumbai",
         );
       },
       network_id: "80001",
@@ -113,7 +107,7 @@ module.exports = {
       gas: 8000000,
       gasPrice: 26000000000,
     },
-    fuji: {
+    avalanche_testnet: {
       provider: () =>
         new HDWalletProvider(
           process.env.MNEMONIC,
@@ -129,8 +123,15 @@ module.exports = {
         );
       },
       network_id: 42262,
-      gas: 4465030,
-      gasPrice: 30000000000,
+    },
+    oasis_testnet: {
+      provider: () => {
+        return new HDWalletProvider(
+          process.env.MNEMONIC,
+          "https://testnet.emerald.oasis.dev"
+        );
+      },
+      network_id: 42261,
     },
     aurora: {
       provider: () => {
@@ -140,7 +141,7 @@ module.exports = {
         );
       },
       network_id: 0x4e454152,
-      from: "DEPLOYER_PUBLIC_KEY_HERE",
+      from: "0xE2e2d9E31d7e1CC1178Fe0d1c5950f6C809816a3",
     },
     aurora_testnet: {
       provider: () => {
@@ -151,7 +152,7 @@ module.exports = {
       },
       network_id: 0x4e454153,
       gas: 10000000,
-      from: "0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0", // public key
+      from: "0x3bC7f2e458aC4E55F941C458cfD8c6851a591B4F", // public key
     },
     fantom: {
       provider: () => {
@@ -173,20 +174,19 @@ module.exports = {
         );
       },
       network_id: 0xfa2,
-      gas: 4465030,
-      gasPrice: 300000000000,
     },
     karura: {
       provider: () => {
         return new HDWalletProvider(
           process.env.MNEMONIC,
-          // To use this local host, needed to run this: ENDPOINT_URL=wss://karura-rpc-1.aca-api.network npx @acala-network/eth-rpc-adapter@latest
-          "http://localhost:8545"
-          //"https://eth-rpc-karura.aca-api.network/"
+          // NOTE: To use this local host, needed to run this: ENDPOINT_URL=wss://karura-rpc-1.aca-api.network npx @acala-network/eth-rpc-adapter@latest
+          // "http://localhost:8545"
+          "https://eth-rpc-karura.aca-api.network/"
         );
       },
       network_id: 686,
-      gasPrice: "0x2f7e8803ea",
+      // NOTE: run ./karura-gas-prices and update the following two values, otherwise the transactions will likely fail
+      gasPrice: "0x2fad8f03ea",
       gasLimit: "0x329b140",
       gas: "0x329b140",
     },
@@ -194,13 +194,13 @@ module.exports = {
       provider: () => {
         return new HDWalletProvider(
           process.env.MNEMONIC,
-          "http://103.253.145.222:8545"
+          "https://karura-dev.aca-dev.network/eth/http"
         );
       },
       network_id: 596,
-      gasPrice: 202184721385,
-      gasLimit: 117096000,
-      gas: 117096000,
+      gasPrice: "0x2f7e8805de",
+      gasLimit: "0x329b140",
+      gas: "0x329b0dc",
     },
     acala: {
       provider: () => {
@@ -212,53 +212,29 @@ module.exports = {
         );
       },
       network_id: 787,
-      gasPrice: "0x2f25eb03ea",
+      gasPrice: "0x2f3e3403ea",
       gas: "0x6fc3540",
     },
     acala_testnet: {
       provider: () => {
         return new HDWalletProvider(
           process.env.MNEMONIC,
-          "http://157.245.252.103:8545"
+          "https://acala-dev.aca-dev.network/eth/http"
         );
       },
       network_id: 597,
-      gasPrice: 202184721385,
-      gasLimit: 213192000,
-      gas: 213192000,
+      gasPrice: "0x2ed51903ea",
+      gasLimit: "0x6fc3540",
+      gas: "0x329b0dc",
     },
     klaytn: {
       // Note that Klaytn works with version 5.3.14 of truffle, but not some of the newer versions.
       provider: () => {
-        const option = {
-          headers: [
-            {
-              name: "Authorization",
-              value:
-                "Basic " +
-                Buffer.from(
-                  process.env.KLAY_ACCESS_ID +
-                    ":" +
-                    process.env.KLAY_SECURITY_KEY
-                ).toString("base64"),
-            },
-            { name: "x-chain-id", value: "8217" },
-          ],
-          keepAlive: false,
-        };
-        return new KLAYHDWalletProvider(
-          process.env.MNEMONIC,
-          new Caver.providers.HttpProvider(
-            "https://node-api.klaytnapi.com/v1/klaytn",
-            option
-          )
-        );
+        return new KLAYHDWalletProvider(process.env.MNEMONIC, "https://public-node-api.klaytnapi.com/v1/cypress");
       },
-      network_id: 8217, //Klaytn mainnet's network id
-      gas: "8000000",
-      gasPrice: "750000000000",
-      disableConfirmationListener: true,
-      pollingInterval: 1800000,
+      network_id: "8217", //Klaytn mainnet's network id
+      gas: "8500000",
+      gasPrice: null,
     },
     klaytn_testnet: {
       // Note that Klaytn works with version 5.3.14 of truffle, but not some of the newer versions.
@@ -283,7 +259,7 @@ module.exports = {
       gas: 8000000,
       gasPrice: null,
     },
-    celo_alfajores_testnet: {
+    celo_testnet: {
       provider: () => {
         return new HDWalletProvider(
           process.env.MNEMONIC,

@@ -2,7 +2,7 @@ import {
   ChainId,
   CHAIN_ID_ALGORAND,
   CHAIN_ID_SOLANA,
-  CHAIN_ID_TERRA,
+  CHAIN_ID_TERRA2,
   getForeignAssetAlgorand,
   getForeignAssetEth,
   getForeignAssetSolana,
@@ -10,6 +10,7 @@ import {
   hexToNativeAssetString,
   hexToUint8Array,
   isEVMChain,
+  isTerraChain,
 } from "@certusone/wormhole-sdk";
 import {
   getForeignAssetEth as getForeignAssetEthNFT,
@@ -51,9 +52,9 @@ import {
   SOLANA_HOST,
   SOL_NFT_BRIDGE_ADDRESS,
   SOL_TOKEN_BRIDGE_ADDRESS,
-  TERRA_HOST,
-  TERRA_TOKEN_BRIDGE_ADDRESS,
+  getTerraConfig,
 } from "../utils/consts";
+import { queryExternalId } from "../utils/terra";
 
 function useFetchTargetAsset(nft?: boolean) {
   const dispatch = useDispatch();
@@ -118,20 +119,39 @@ function useFetchTargetAsset(nft?: boolean) {
       return;
     }
     setLastSuccessfulArgs(null);
-    if (isSourceAssetWormholeWrapped && originChain === targetChain) {
-      dispatch(
-        setTargetAsset(
-          receiveDataWrapper({
-            doesExist: true,
-            address: hexToNativeAssetString(originAsset, originChain) || null,
-          })
-        )
-      );
-      setArgs();
-      return;
-    }
     let cancelled = false;
     (async () => {
+      if (isSourceAssetWormholeWrapped && originChain === targetChain) {
+        if (originChain === CHAIN_ID_TERRA2) {
+          const tokenId = await queryExternalId(originAsset || "");
+          if (!cancelled) {
+            dispatch(
+              setTargetAsset(
+                receiveDataWrapper({
+                  doesExist: true,
+                  address: tokenId || null,
+                })
+              )
+            );
+          }
+        } else {
+          if (!cancelled) {
+            dispatch(
+              setTargetAsset(
+                receiveDataWrapper({
+                  doesExist: true,
+                  address:
+                    hexToNativeAssetString(originAsset, originChain) || null,
+                })
+              )
+            );
+          }
+        }
+        if (!cancelled) {
+          setArgs();
+        }
+        return;
+      }
       if (
         isEVMChain(targetChain) &&
         provider &&
@@ -214,12 +234,12 @@ function useFetchTargetAsset(nft?: boolean) {
           }
         }
       }
-      if (targetChain === CHAIN_ID_TERRA && originChain && originAsset) {
+      if (isTerraChain(targetChain) && originChain && originAsset) {
         dispatch(setTargetAsset(fetchDataWrapper()));
         try {
-          const lcd = new LCDClient(TERRA_HOST);
+          const lcd = new LCDClient(getTerraConfig(targetChain));
           const asset = await getForeignAssetTerra(
-            TERRA_TOKEN_BRIDGE_ADDRESS,
+            getTokenBridgeAddressForChain(targetChain),
             lcd,
             originChain,
             hexToUint8Array(originAsset)
@@ -258,7 +278,6 @@ function useFetchTargetAsset(nft?: boolean) {
             originChain,
             originAsset
           );
-          console.log("foreign asset algo:", asset);
           if (!cancelled) {
             dispatch(
               setTargetAsset(
