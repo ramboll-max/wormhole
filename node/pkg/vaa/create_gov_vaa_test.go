@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 	"google.golang.org/protobuf/proto"
 	"io/ioutil"
+	"math/big"
 	"math/rand"
 	"strings"
 	"testing"
@@ -58,7 +59,7 @@ func loadGuardianKey(sk string) (*ecdsa.PrivateKey, error) {
 }
 
 func TestCreateRegisterChainVAA_ETH(t *testing.T) {
-	tokenBridgeAddr := "0x459732edE0f7D3AbDB55B5cDb7c6eD8060e4a17F"
+	tokenBridgeAddr := "0xbe9284bF751982329748a93265484308c915CD03"
 	bz, err := hex.DecodeString(tokenBridgeAddr[2:])
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
@@ -119,7 +120,7 @@ func TestCreateRegisterChainVAA_Terra(t *testing.T) {
 }
 
 func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
-	sophonTokenBridgeAddr := "sop15v8jqq6aqhsuykdgdevx3qqcj9lp4h27ypsycds4cmv6er9qv0vsp2cj2t"
+	sophonTokenBridgeAddr := "sop1wr6vc3g4caz9aclgjacxewr0pjlre9wl2uhq73rp8mawwmqaczsqsl7vxy"
 	bz, err := sdk.GetFromBech32(sophonTokenBridgeAddr, "sop")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
@@ -158,9 +159,12 @@ func TestParseSophonAddrToWormhole(t *testing.T) {
 }
 
 func TestTmp(t *testing.T) {
-	sopAddr := "usop"
-	h := crypto.Keccak256Hash([]byte(sopAddr))
-	h[0] = 1
-	println(hex.EncodeToString(h[:]))
-
+	//sopAddr := "usop"
+	//h := crypto.Keccak256Hash([]byte(sopAddr))
+	//h[0] = 1
+	//println(hex.EncodeToString(h[:]))
+	z := big.NewInt(2)
+	z = z.Lsh(z, 128)
+	println(z.String())
+	//println(1 << 3)
 }

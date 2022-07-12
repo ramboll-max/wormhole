@@ -162,7 +162,7 @@ pub fn send_native(
         + counter_bucket
             .load(asset_address.serialize().as_slice())
             .unwrap_or(Uint128::zero());
-    if new_total > Uint128::new(u128::MAX) {
+    if new_total > Uint128::new(u64::MAX as u128) {
         return Err(StdError::generic_err(
             "transfer exceeds max outstanding bridged token amount",
         ));

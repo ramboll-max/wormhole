@@ -37,12 +37,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	cosmwasm "github.com/certusone/wormhole/node/pkg/terra"
-
-	"github.com/certusone/wormhole/node/pkg/algorand"
-
-	ipfslog "github.com/ipfs/go-log/v2"
 )
 
 var (
@@ -363,6 +357,7 @@ func runNode(cmd *cobra.Command, args []string) {
 
 	// Register components for readiness checks.
 	readiness.RegisterComponent(common.ReadinessEthSyncing)
+	readiness.RegisterComponent(common.ReadinessSophonSyncing)
 	//if *solanaWsRPC != "" {
 	//	readiness.RegisterComponent(common.ReadinessSolanaSyncing)
 	//}
@@ -413,7 +408,7 @@ func runNode(cmd *cobra.Command, args []string) {
 		router.Handle("/metrics", promhttp.Handler())
 
 		go func() {
-			logger.Info("status server listening on [::]:6060")
+			logger.Info("status server listening on " + *statusAddr)
 			// SECURITY: If making changes, ensure that we always do `router := mux.NewRouter()` before this to avoid accidentally exposing pprof
 			logger.Error("status server crashed", zap.Error(http.ListenAndServe(*statusAddr, router)))
 		}()
@@ -431,6 +426,7 @@ func runNode(cmd *cobra.Command, args []string) {
 
 		// Deterministic ganache ETH devnet address.
 		*ethContract = devnet.GanacheWormholeContractAddress.Hex()
+		*sophonContract = devnet.GanacheWormholeContractAddress.Hex()
 		//*bscContract = devnet.GanacheWormholeContractAddress.Hex()
 		//*polygonContract = devnet.GanacheWormholeContractAddress.Hex()
 		//*avalancheContract = devnet.GanacheWormholeContractAddress.Hex()
@@ -443,7 +439,6 @@ func runNode(cmd *cobra.Command, args []string) {
 		//*celoContract = devnet.GanacheWormholeContractAddress.Hex()
 		//*moonbeamContract = devnet.GanacheWormholeContractAddress.Hex()
 		//*neonContract = devnet.GanacheWormholeContractAddress.Hex()
-		*sophonContract = devnet.GanacheWormholeContractAddress.Hex()
 	}
 
 	// Verify flags
@@ -689,9 +684,9 @@ func runNode(cmd *cobra.Command, args []string) {
 	//moonbeamContractAddr := eth_common.HexToAddress(*moonbeamContract)
 	//neonContractAddr := eth_common.HexToAddress(*neonContract)
 	//solAddress, err := solana_types.PublicKeyFromBase58(*solanaContract)
-	if err != nil {
-		logger.Fatal("invalid Solana contract address", zap.Error(err))
-	}
+	//if err != nil {
+	//	logger.Fatal("invalid Solana contract address", zap.Error(err))
+	//}
 
 	// In devnet mode, we generate a deterministic guardian key and write it to disk.
 	if *unsafeDevMode {

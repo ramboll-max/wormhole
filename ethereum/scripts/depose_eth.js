@@ -104,12 +104,6 @@ module.exports = async function (callback) {
         console.log("fee:", log.payload.substr(204, 64));
         // assert.equal(log.payload.substr(204, 64), web3.eth.abi.encodeParameter("uint256", new BigNumber(fee).div(1e10).toString()).substring(2))
 
-        // Register the ETH endpoint
-        // await initialized.methods.registerChain("0x" + ethTokenBridgeVAA).send({
-        //     value: 0,
-        //     from: accounts[0],
-        //     gasLimit: 2000000
-        // });
         console.log("message_id:", `2/000000000000000000000000${log.sender.substring(2)}/${log.sequence}`);
         callback();
     }
