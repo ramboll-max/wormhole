@@ -28,6 +28,8 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     DepositAndTransferBankTokens {
+        denom: String,
+        amount: Uint128,
         recipient_chain: u16,
         recipient: Binary,
         fee: Uint128,
@@ -35,6 +37,8 @@ pub enum ExecuteMsg {
     },
 
     DepositAndTransferBankTokensWithPayload {
+        denom: String,
+        amount: Uint128,
         recipient_chain: u16,
         recipient: Binary,
         fee: Uint128,

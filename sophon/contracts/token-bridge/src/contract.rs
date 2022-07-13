@@ -306,6 +306,8 @@ fn parse_vaa(deps: Deps<CustomQuery>, block_time: u64, data: &Binary) -> StdResu
 pub fn execute(deps: DepsMut<CustomQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response<CustomMsg>> {
     match msg {
         ExecuteMsg::DepositAndTransferBankTokens {
+            denom,
+            amount,
             recipient_chain,
             recipient,
             fee,
@@ -316,11 +318,15 @@ pub fn execute(deps: DepsMut<CustomQuery>, env: Env, info: MessageInfo, msg: Exe
             info,
             recipient_chain,
             recipient.to_array()?,
+            denom,
+            amount,
             fee,
             TransferType::WithoutPayload,
             nonce,
         ),
         ExecuteMsg::DepositAndTransferBankTokensWithPayload {
+            denom,
+            amount,
             recipient_chain,
             recipient,
             fee,
@@ -332,6 +338,8 @@ pub fn execute(deps: DepsMut<CustomQuery>, env: Env, info: MessageInfo, msg: Exe
             info,
             recipient_chain,
             recipient.to_array()?,
+            denom,
+            amount,
             fee,
             TransferType::WithPayload {
                 payload: payload.into(),
@@ -392,6 +400,8 @@ fn handle_deposit_and_transfer(
     info: MessageInfo,
     recipient_chain: u16,
     recipient: [u8; 32],
+    denom: String,
+    amount: Uint128,
     fee: Uint128,
     transfer_type: TransferType<Vec<u8>>,
     nonce: u32,
@@ -401,15 +411,30 @@ fn handle_deposit_and_transfer(
     if denoms_count == 0 {
         return Err(StdError::generic_err("no denom sent"));
     }
-    if denoms_count > 1 {
-        return Err(StdError::generic_err("only one denom can be sent at one time"));
+    let mut wormhole_fee: Vec<Coin> =  Vec::new();
+    let mut found = false;
+    for coin in info.clone().funds {
+        if coin.denom == denom {
+            if found {
+                wormhole_fee.push(coin);
+                continue;
+            }
+            if coin.amount < amount {
+                return Err(StdError::generic_err(format!("send more {} please", denom)));
+            }
+            let mut last_coin = coin.clone();
+            last_coin.amount -= amount;
+            if last_coin.amount > Uint128::zero() {
+                wormhole_fee.push(last_coin);
+            }
+            found = true;
+        } else {
+            wormhole_fee.push(coin);
+        }
     }
-    let coin = match info.funds.get(0) {
-        Some(v) => v,
-        None => return Err(StdError::generic_err("no funds"))
-    };
-    let denom = coin.clone().denom;
-    let send_amount = coin.amount;
+    if !found {
+        return Err(StdError::generic_err(format!("send more {} please", denom)));
+    }
 
     // whether it is a wrapped denom
     let init_res = match denom_wrapped_asset_address_read(deps.storage).load(denom.as_bytes()) {
@@ -418,25 +443,27 @@ fn handle_deposit_and_transfer(
             env,
             info,
             denom.clone(),
-            send_amount,
+            amount,
             recipient_chain,
             recipient,
             fee,
             transfer_type,
             nonce,
             asset_addr,
+            wormhole_fee,
         ),
         Err(_) => initiate_transfer_native_token(
             deps,
             env,
             info,
             denom.clone(),
-            send_amount,
+            amount,
             recipient_chain,
             recipient,
             fee,
             transfer_type,
             nonce,
+            wormhole_fee,
         )
     };
     match init_res {
@@ -1334,6 +1361,7 @@ fn initiate_transfer_wrapped_token(
     transfer_type: TransferType<Vec<u8>>,
     nonce: u32,
     asset_address: [u8; 32],
+    wormhole_fees: Vec<Coin>,
 ) -> StdResult<Response<CustomMsg>> {
     if recipient_chain == CHAIN_ID {
         return ContractError::SameSourceAndTarget.std_err();
@@ -1368,7 +1396,7 @@ fn initiate_transfer_wrapped_token(
     let mut decimals: u8 = 0;
     for u in metadata_res.metadata.denom_units {
         if display == u.denom {
-            decimals = u.exponent.unwrap();
+            decimals = u.exponent.unwrap_or(0);
             break;
         }
     }
@@ -1429,8 +1457,8 @@ fn initiate_transfer_wrapped_token(
             message: Binary::from(token_bridge_message.serialize()),
             nonce,
         })?,
-        // forward coins sent to this message
-        funds: info.funds.clone(),
+        // forward fee coins sent to this message
+        funds: wormhole_fees,
     }));
 
     // emit Event
@@ -1463,6 +1491,7 @@ fn initiate_transfer_native_token(
     fee: Uint128,
     transfer_type: TransferType<Vec<u8>>,
     nonce: u32,
+    wormhole_fees: Vec<Coin>,
 ) -> StdResult<Response<CustomMsg>> {
     if recipient_chain == CHAIN_ID {
         return ContractError::SameSourceAndTarget.std_err();
@@ -1551,7 +1580,7 @@ fn initiate_transfer_native_token(
             message: Binary::from(token_bridge_message.serialize()),
             nonce,
         })?,
-        funds: info.funds,
+        funds: wormhole_fees,
     }));
 
     // emit Event

@@ -27,6 +27,8 @@ const recipient = "0000000000000000000000000" + eth_recipient.substring(2);
 const nonce = Math.round(Math.random() * 100000);
 const executeMsg = {
     deposit_and_transfer_bank_tokens: {
+        denom: denom,
+        amount: amount,
         recipient_chain: recipient_chain,
         recipient: Buffer.from(recipient.toLowerCase(), "hex").toString("base64"),
         fee: "0",
@@ -35,7 +37,8 @@ const executeMsg = {
 };
 const json = JSON.stringify(executeMsg);
 console.log(json)
-const res = await client.execute(acc_address, tokenBridgeAddress, executeMsg, executeFee, "",[{denom: denom, amount: amount}]);
+var funds = [{ denom: denom, amount: amount }];
+const res = await client.execute(acc_address, tokenBridgeAddress, executeMsg, executeFee, "", funds);
 console.log(JSON.stringify(res, "", " "));
 const logJson = JSON.stringify(res.logs);
 const message_sender = /"message.sender","value":"([^"]+)/gm.exec(`${logJson}`)[1];
