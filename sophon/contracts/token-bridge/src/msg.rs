@@ -33,6 +33,7 @@ pub enum ExecuteMsg {
         fee: Uint128,
         nonce: u32,
     },
+
     DepositAndTransferBankTokensWithPayload {
         recipient_chain: u16,
         recipient: Binary,
@@ -40,10 +41,6 @@ pub enum ExecuteMsg {
         payload: Binary,
         nonce: u32,
     },
-    // DepositTokens {},
-    // WithdrawTokens {
-    //     asset: AssetInfo,
-    // },
 
     InitiateTransfer {
         asset: Asset,
