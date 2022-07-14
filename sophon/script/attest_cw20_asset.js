@@ -34,3 +34,8 @@ console.log(json)
 const res = await client.execute(acc_address, tokenBridgeAddress, executeMsg, executeFee);
 console.log(JSON.stringify(res, "", " "));
 
+const logJson = JSON.stringify(res.logs);
+const message_sender = /"message.sender","value":"([^"]+)/gm.exec(`${logJson}`)[1];
+const message_chain_id = /"message.chain_id","value":"([^"]+)/gm.exec(`${logJson}`)[1];
+const message_sequence = /"message.sequence","value":"([^"]+)/gm.exec(`${logJson}`)[1];
+console.log("message_id:", `${message_chain_id}/${message_sender}/${message_sequence}`)

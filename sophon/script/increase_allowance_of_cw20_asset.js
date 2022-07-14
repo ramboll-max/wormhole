@@ -6,6 +6,7 @@ import {calculateFee, GasPrice} from "@honsop/stargate";
 const node = process.env.NODE;
 const mnemonic = process.env.MNEMONIC;
 const gas_prices = process.env.GAS_PRICES;
+const amount = process.env.AMOUNT;
 const wallet = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic, {
     prefix: "sop",
 });
@@ -20,7 +21,6 @@ const gasPrice = GasPrice.fromString(gas_prices);
 const tokenBridgeAddress = process.env.TOKEN_BRIDGE_ADDRESS;
 const asset = process.env.TOKEN_CONTRACT_ADDR;
 const executeFee = calculateFee(2_500_000, gasPrice);
-const amount = "1000000000000000000";
 const executeMsg = {
     increase_allowance: {
         spender: tokenBridgeAddress,
