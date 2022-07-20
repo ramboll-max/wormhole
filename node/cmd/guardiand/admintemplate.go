@@ -10,6 +10,7 @@ import (
 
 	"github.com/btcsuite/btcutil/bech32"
 	"github.com/certusone/wormhole/node/pkg/vaa"
+	cosmosbech32 "github.com/cosmos/cosmos-sdk/types/bech32"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/mr-tron/base58"
 	"github.com/spf13/pflag"
@@ -285,7 +286,16 @@ func parseAddress(s string) (string, error) {
 	// try bech32
 	_, b, err = bech32.Decode(s)
 	if err == nil {
-		return leftPadAddress(b)
+		res, e := leftPadAddress(b)
+		if e != nil {
+			// try cosmos bech32
+			_, b, err = cosmosbech32.DecodeAndConvert(s)
+			if err == nil {
+				return leftPadAddress(b)
+			}
+		} else {
+			return res, e
+		}
 	}
 
 	// try hex
