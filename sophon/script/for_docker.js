@@ -67,7 +67,6 @@ if (unexpected_artifacts.length) {
 const codeIds = {};
 for (const file of artifacts) {
   const contract_bytes = fs.readFileSync(`${path}${file}`);
-  console.log(`Storing WASM: ${file} (${contract_bytes.length} bytes)`);
 
   try {
     const uploadReceipt = await client.upload(
@@ -79,12 +78,13 @@ for (const file of artifacts) {
 
     const ci = uploadReceipt.codeId;
     codeIds[file] = parseInt(ci);
+    console.log(`${file} code id: ${ci}`);
   } catch (e) {
     console.log(`${e}`);
   }
 }
 
-console.log("codeIds:", codeIds);
+// console.log("codeIds:", codeIds);
 
 /* Instantiate contracts.
  *
@@ -102,19 +102,11 @@ async function instantiate(contract, inst_msg) {
     instantiateFee,
     { memo: "" }
   );
-  console.log(
-    `Instantiated ${contract} at ${contractAddress} (${convert_sophon_address_to_hex(
-        contractAddress
-    )})`
-  );
   return contractAddress;
 }
 
 // Instantiate contracts.  NOTE: Only append at the end, the ordering must be
 // deterministic for the addresses to work
-
-const addresses = {};
-
 const init_guardians = JSON.parse(process.env.INIT_SIGNERS);
 if (!init_guardians || init_guardians.length === 0) {
   throw "failed to get initial guardians from .env file.";
@@ -125,7 +117,7 @@ const govChain = parseInt(process.env.INIT_GOV_CHAIN_ID);
 const govAddress = process.env.INIT_GOV_ADDRESS;
 const govAddressBase64 = Buffer.from(govAddress, "hex").toString("base64");
 
-addresses["wormhole.wasm"] = await instantiate("wormhole.wasm", {
+const wormholeAddress = await instantiate("wormhole.wasm", {
   gov_chain: govChain,
   gov_address: govAddressBase64,
   guardian_set_expirity: 86400,
@@ -139,16 +131,20 @@ addresses["wormhole.wasm"] = await instantiate("wormhole.wasm", {
   },
 });
 
-addresses["token_bridge_sophon.wasm"] = await instantiate(
+console.log(`Wormhole Contract address: ${wormholeAddress}`);
+
+const tokenBridgeAddress = await instantiate(
   "token_bridge_sophon.wasm",
   {
     gov_chain: govChain,
     gov_address: govAddressBase64,
-    wormhole_contract: addresses["wormhole.wasm"],
+    wormhole_contract: wormholeAddress,
   }
 );
 
-addresses["mock.wasm"] = await instantiate("cw20_base.wasm", {
+console.log(`TokenBridge Contract address: ${tokenBridgeAddress}`);
+
+const mockCW20Address = await instantiate("cw20_base.wasm", {
   name: "MOCK",
   symbol: "MCK",
   decimals: 18,
@@ -161,11 +157,4 @@ addresses["mock.wasm"] = await instantiate("cw20_base.wasm", {
   mint: null,
 });
 
-console.log("addresses:", addresses);
-
-
-// Sophon addresses are "human-readable", but for cross-chain registrations, we
-// want the "canonical" version
-function convert_sophon_address_to_hex(human_addr) {
-  return "0x" + toHex(zeroPad(fromBech32(human_addr).data, 32));
-}
+console.log(`MOCK CW20 Token Contract address: ${mockCW20Address}`);
