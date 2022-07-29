@@ -151,7 +151,7 @@ func TestCreateRegisterChainVAA_MetaOS(t *testing.T) {
 }
 
 func TestParseMetaOSAddrToWormhole(t *testing.T) {
-	metaOSAddr := "mtos1fjxjm3xc9s3u280eclzesy6ns4y4wgq0ze5n63"
+	metaOSAddr := "mtos1pvrwmjuusn9wh34j7y520g8gumuy9xtl3gvprlljfdpwju3x7ucs48er7a"
 	bz, err := sdk.GetFromBech32(metaOSAddr, "mtos")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
