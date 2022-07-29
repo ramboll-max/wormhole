@@ -9,7 +9,7 @@ const TokenImplementationFullABI = jsonfile.readFileSync("../build/contracts/Tok
 const wormholeAddress = process.env.WORMHOLE;
 const ethTokenBridgeAddress = process.env.ETH_TOKEN_BRIDGE_ADDR;
 const tokenAddr = process.env.TOKEN_ADDR;
-const recipientSophon = process.env.SOPHON_RECIPIENT;
+const recipientMetaOS = process.env.METAOS_RECIPIENT;
 const recipientChain = process.env.RECIPIENT_CHAIN;
 const amount = process.env.AMOUNT;
 
@@ -17,7 +17,7 @@ module.exports = async function (callback) {
     try {
         const accounts = await web3.eth.getAccounts();
         const fee = "0";
-        const recipient = "0x" + toHex(zeroPad(fromBech32(recipientSophon).data, 32));
+        const recipient = "0x" + toHex(zeroPad(fromBech32(recipientMetaOS).data, 32));
         const ERC20 = new web3.eth.Contract(TokenImplementationFullABI, tokenAddr);
 
         const approveRes = await ERC20.methods.approve(ethTokenBridgeAddress, amount).send(

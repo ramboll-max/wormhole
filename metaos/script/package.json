@@ -1,0 +1,16 @@
+{
+  "name": "script",
+  "version": "1.0.0",
+  "description": "",
+  "main": "deploy.js",
+  "type": "module",
+  "dependencies": {
+    "@cosmjs/crypto": "^0.28.3",
+    "@cosmjs/stargate": "^0.28.3",
+    "@ethersproject/keccak256": "^5.6.1",
+    "@honsop/cosmwasm-stargate": "^0.28.17",
+    "cosmwasm": "^1.1.0",
+    "dotenv": "^16.0.1",
+    "ethers": "^5.6.8"
+  }
+}

@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"github.com/certusone/wormhole/node/pkg/sophon"
+	"github.com/certusone/wormhole/node/pkg/metaos"
 	"log"
 	"net/http"
 	_ "net/http/pprof" // #nosec G108 we are using a custom router (`router := mux.NewRouter()`) and thus not automatically expose pprof.
@@ -101,9 +101,9 @@ var (
 	//terraLCD      *string
 	//terraContract *string
 
-	sophonWS       *string
-	sophonLCD      *string
-	sophonContract *string
+	metaosWS       *string
+	metaosLCD      *string
+	metaosContract *string
 
 	//terraWS       *string
 	//terraLCD      *string
@@ -217,9 +217,9 @@ func init() {
 	//terraLCD = NodeCmd.Flags().String("terraLCD", "", "Path to LCD service root for http calls")
 	//terraContract = NodeCmd.Flags().String("terraContract", "", "Wormhole contract address on Terra blockchain")
 
-	sophonWS = NodeCmd.Flags().String("sophonWS", "", "Path to sophond root for websocket connection")
-	sophonLCD = NodeCmd.Flags().String("sophonLCD", "", "Path to sophon LCD service root for http calls")
-	sophonContract = NodeCmd.Flags().String("sophonContract", "", "Wormhole contract address on Sophon blockchain")
+	metaosWS = NodeCmd.Flags().String("metaosWS", "", "Path to metaosd root for websocket connection")
+	metaosLCD = NodeCmd.Flags().String("metaosLCD", "", "Path to metaos LCD service root for http calls")
+	metaosContract = NodeCmd.Flags().String("metaosContract", "", "Wormhole contract address on MetaOS blockchain")
 
 	//terraWS = NodeCmd.Flags().String("terraWS", "", "Path to terrad root for websocket connection")
 	//terraLCD = NodeCmd.Flags().String("terraLCD", "", "Path to LCD service root for http calls")
@@ -357,7 +357,7 @@ func runNode(cmd *cobra.Command, args []string) {
 
 	// Register components for readiness checks.
 	readiness.RegisterComponent(common.ReadinessEthSyncing)
-	readiness.RegisterComponent(common.ReadinessSophonSyncing)
+	readiness.RegisterComponent(common.ReadinessMetaOSSyncing)
 	//if *solanaWsRPC != "" {
 	//	readiness.RegisterComponent(common.ReadinessSolanaSyncing)
 	//}
@@ -426,7 +426,7 @@ func runNode(cmd *cobra.Command, args []string) {
 
 		// Deterministic ganache ETH devnet address.
 		*ethContract = devnet.GanacheWormholeContractAddress.Hex()
-		*sophonContract = devnet.GanacheWormholeContractAddress.Hex()
+		*metaosContract = devnet.GanacheWormholeContractAddress.Hex()
 		//*bscContract = devnet.GanacheWormholeContractAddress.Hex()
 		//*polygonContract = devnet.GanacheWormholeContractAddress.Hex()
 		//*avalancheContract = devnet.GanacheWormholeContractAddress.Hex()
@@ -761,7 +761,7 @@ func runNode(cmd *cobra.Command, args []string) {
 	// Observation request channel for each chain supporting observation requests.
 	//chainObsvReqC[vaa.ChainIDSolana] = make(chan *gossipv1.ObservationRequest)
 	chainObsvReqC[vaa.ChainIDEthereum] = make(chan *gossipv1.ObservationRequest)
-	chainObsvReqC[vaa.ChainIDSophon] = make(chan *gossipv1.ObservationRequest)
+	chainObsvReqC[vaa.ChainIDMetaOS] = make(chan *gossipv1.ObservationRequest)
 	//chainObsvReqC[vaa.ChainIDTerra] = make(chan *gossipv1.ObservationRequest)
 	//chainObsvReqC[vaa.ChainIDTerra2] = make(chan *gossipv1.ObservationRequest)
 	//chainObsvReqC[vaa.ChainIDBSC] = make(chan *gossipv1.ObservationRequest)
@@ -980,10 +980,10 @@ func runNode(cmd *cobra.Command, args []string) {
 		//	}
 		//}
 
-		// Start Sophon watcher only if configured
-		logger.Info("Starting Sophon watcher")
-		if err := supervisor.Run(ctx, "sophonwatch",
-			sophon.NewWatcher(*sophonWS, *sophonLCD, *sophonContract, lockC, setC, chainObsvReqC[vaa.ChainIDSophon]).Run); err != nil {
+		// Start MetaOS watcher only if configured
+		logger.Info("Starting MetaOS watcher")
+		if err := supervisor.Run(ctx, "metaoswatch",
+			metaos.NewWatcher(*metaosWS, *metaosLCD, *metaosContract, lockC, setC, chainObsvReqC[vaa.ChainIDMetaOS]).Run); err != nil {
 			return err
 		}
 

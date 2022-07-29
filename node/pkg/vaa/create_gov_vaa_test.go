@@ -80,7 +80,7 @@ func TestCreateRegisterChainVAA_ETH(t *testing.T) {
 		Nonce:            rand.Uint32(),
 		Sequence:         rand.Uint64(),
 		ConsistencyLevel: 1,
-		EmitterChain:     ChainIDSophon,
+		EmitterChain:     ChainIDMetaOS,
 		EmitterAddress:   GovernanceEmitter,
 		Payload:          registerChain.Serialize(),
 	}
@@ -110,7 +110,7 @@ func TestCreateRegisterChainVAA_Terra(t *testing.T) {
 		Nonce:            rand.Uint32(),
 		Sequence:         rand.Uint64(),
 		ConsistencyLevel: 15,
-		EmitterChain:     ChainIDSophon,
+		EmitterChain:     ChainIDMetaOS,
 		EmitterAddress:   GovernanceEmitter,
 		Payload:          registerChain.Serialize(),
 	}
@@ -119,16 +119,16 @@ func TestCreateRegisterChainVAA_Terra(t *testing.T) {
 	println(hex.EncodeToString(vaaData))
 }
 
-func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
-	sophonTokenBridgeAddr := "sop1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquz2k54"
-	bz, err := sdk.GetFromBech32(sophonTokenBridgeAddr, "sop")
+func TestCreateRegisterChainVAA_MetaOS(t *testing.T) {
+	metaOSTokenBridgeAddr := "mtos1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquz2k54"
+	bz, err := sdk.GetFromBech32(metaOSTokenBridgeAddr, "mtos")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
 	emitter := Address{}
 	copy(emitter[:], bz)
 	registerChain := BodyTokenBridgeRegisterChain{
 		Module:         "TokenBridge",
-		ChainID:        ChainIDSophon,
+		ChainID:        ChainIDMetaOS,
 		EmitterAddress: emitter,
 	}
 
@@ -141,7 +141,7 @@ func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
 		Nonce:            rand.Uint32(),
 		Sequence:         rand.Uint64(),
 		ConsistencyLevel: 15,
-		EmitterChain:     ChainIDSophon,
+		EmitterChain:     ChainIDMetaOS,
 		EmitterAddress:   GovernanceEmitter,
 		Payload:          registerChain.Serialize(),
 	}
@@ -150,17 +150,17 @@ func TestCreateRegisterChainVAA_Sophon(t *testing.T) {
 	println(hex.EncodeToString(vaaData))
 }
 
-func TestParseSophonAddrToWormhole(t *testing.T) {
-	sophonAddr := "sop1vguuxez2h5ekltfj9gjd62fs5k4rl2zy5hfrncasykzw08rezpfsf9x6vd"
-	bz, err := sdk.GetFromBech32(sophonAddr, "sop")
+func TestParseMetaOSAddrToWormhole(t *testing.T) {
+	metaOSAddr := "mtos1fjxjm3xc9s3u280eclzesy6ns4y4wgq0ze5n63"
+	bz, err := sdk.GetFromBech32(metaOSAddr, "mtos")
 	require.NoError(t, err)
 	bz = common.LeftPadBytes(bz, 32)
 	println(hex.EncodeToString(bz))
 }
 
 func TestTmp(t *testing.T) {
-	//sopAddr := "usop"
-	//h := crypto.Keccak256Hash([]byte(sopAddr))
+	//mtosAddr := "umtos"
+	//h := crypto.Keccak256Hash([]byte(mtosAddr))
 	//h[0] = 1
 	//println(hex.EncodeToString(h[:]))
 	z := big.NewInt(2)

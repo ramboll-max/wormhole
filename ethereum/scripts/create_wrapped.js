@@ -19,7 +19,7 @@ module.exports = async function (callback) {
         ).send({
             value: 0,
             from: accounts[0],
-            gasLimit: 2000000,
+            gasLimit: 20000000,
         });
 
         console.log(result);

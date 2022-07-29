@@ -5,7 +5,7 @@ import (
 )
 
 var GovernanceEmitter = Address{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x08}
-var GovernanceChain = ChainIDSophon
+var GovernanceChain = ChainIDMetaOS
 
 func CreateGovernanceVAA(timestamp time.Time, nonce uint32, sequence uint64, guardianSetIndex uint32, payload []byte) *VAA {
 	vaa := &VAA{

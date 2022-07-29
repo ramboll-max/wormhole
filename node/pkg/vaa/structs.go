@@ -133,8 +133,8 @@ func (c ChainID) String() string {
 	case ChainIDInjective:
 		return "injective"
 
-	case ChainIDSophon:
-		return "sophon"
+	case ChainIDMetaOS:
+		return "metaos"
 	default:
 		return fmt.Sprintf("unknown chain ID: %d", c)
 	}
@@ -183,8 +183,8 @@ func ChainIDFromString(s string) (ChainID, error) {
 	case "injective":
 		return ChainIDInjective, nil
 
-	case "sophon":
-		return ChainIDSophon, nil
+	case "metaos":
+		return ChainIDMetaOS, nil
 	default:
 		return ChainIDUnset, fmt.Errorf("unknown chain ID: %s", s)
 	}
@@ -232,8 +232,8 @@ const (
 	// ChainIDEthereumRopsten is the ChainID of Ethereum Ropsten
 	ChainIDEthereumRopsten ChainID = 10001
 
-	// ChainIDSophon is the ChainID of Sophon
-	ChainIDSophon ChainID = 20001
+	// ChainIDMetaOS is the ChainID of MetaOS
+	ChainIDMetaOS ChainID = 20001
 
 	// Minimum VAA size is derrived from the following assumptions:
 	//  HEADER
