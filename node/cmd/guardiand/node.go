@@ -125,6 +125,10 @@ var (
 	//solanaWsRPC *string
 	//solanaRPC   *string
 
+	pythnetContract *string
+	pythnetWsRPC    *string
+	pythnetRPC      *string
+
 	logLevel *string
 
 	//unsafeDevMode   *bool
@@ -152,6 +156,8 @@ var (
 	bigTableTableName          *string
 	bigTableTopicName          *string
 	bigTableKeyPath            *string
+
+	chainGovernorEnabled *bool
 )
 
 func init() {
@@ -241,6 +247,10 @@ func init() {
 	//solanaWsRPC = NodeCmd.Flags().String("solanaWS", "", "Solana Websocket URL (required")
 	//solanaRPC = NodeCmd.Flags().String("solanaRPC", "", "Solana RPC URL (required")
 
+	pythnetContract = NodeCmd.Flags().String("pythnetContract", "", "Address of the PythNet program (required)")
+	pythnetWsRPC = NodeCmd.Flags().String("pythnetWS", "", "PythNet Websocket URL (required")
+	pythnetRPC = NodeCmd.Flags().String("pythnetRPC", "", "PythNet RPC URL (required")
+
 	logLevel = NodeCmd.Flags().String("logLevel", "info", "Logging level (debug, info, warn, error, dpanic, panic, fatal)")
 
 	//unsafeDevMode = NodeCmd.Flags().Bool("unsafeDevMode", false, "Launch node in unsafe, deterministic devnet mode")
@@ -272,6 +282,8 @@ func init() {
 	bigTableTableName = NodeCmd.Flags().String("bigTableTableName", "", "BigTable table name to store events in")
 	bigTableTopicName = NodeCmd.Flags().String("bigTableTopicName", "", "GCP topic name to publish to")
 	bigTableKeyPath = NodeCmd.Flags().String("bigTableKeyPath", "", "Path to json Service Account key")
+
+	chainGovernorEnabled = NodeCmd.Flags().Bool("chainGovernorEnabled", false, "Run the chain governor")
 }
 
 var (
@@ -360,7 +372,10 @@ func runNode(cmd *cobra.Command, args []string) {
 	//if *solanaWsRPC != "" {
 	//	readiness.RegisterComponent(common.ReadinessSolanaSyncing)
 	//}
-	//if *terraWS != "" {
+	//if *pythnetWsRPC != "" {
+		readiness.RegisterComponent(common.ReadinessPythNetSyncing)
+	}
+	if *terraWS != "" {
 	//	readiness.RegisterComponent(common.ReadinessTerraSyncing)
 	//}
 	//if *terra2WS != "" {
@@ -574,7 +589,7 @@ func runNode(cmd *cobra.Command, args []string) {
 		logger.Fatal("Please specify --nodeName")
 	}
 
-	//// Solana, Terra Classic, Terra 2, and Algorand are optional in devnet
+	// Solana, Terra Classic, Terra 2, and Algorand are optional in devnet
 	//if !*unsafeDevMode {
 	//
 	//	if *solanaContract == "" {
@@ -622,6 +637,16 @@ func runNode(cmd *cobra.Command, args []string) {
 	//		}
 	//		if *algorandAppID == 0 {
 	//			logger.Fatal("Please specify --algorandAppID")
+	//		}
+	//
+	//		if *pythnetContract == "" {
+	//			logger.Fatal("Please specify --pythnetContract")
+	//		}
+	//		if *pythnetWsRPC == "" {
+	//			logger.Fatal("Please specify --pythnetWsUrl")
+	//		}
+	//		if *pythnetRPC == "" {
+	//			logger.Fatal("Please specify --pythnetUrl")
 	//		}
 	//	}
 	//
@@ -685,6 +710,13 @@ func runNode(cmd *cobra.Command, args []string) {
 	//if err != nil {
 	//	logger.Fatal("invalid Solana contract address", zap.Error(err))
 	//}
+	var pythnetAddress solana_types.PublicKey
+	if *testnetMode {
+		pythnetAddress, err = solana_types.PublicKeyFromBase58(*pythnetContract)
+		if err != nil {
+			logger.Fatal("invalid PythNet contract address", zap.Error(err))
+		}
+	}
 
 	// In devnet mode, we generate a deterministic guardian key and write it to disk.
 	//if *unsafeDevMode {
@@ -780,6 +812,7 @@ func runNode(cmd *cobra.Command, args []string) {
 	//	chainObsvReqC[vaa.ChainIDNeon] = make(chan *gossipv1.ObservationRequest)
 	//	chainObsvReqC[vaa.ChainIDEthereumRopsten] = make(chan *gossipv1.ObservationRequest)
 	//	chainObsvReqC[vaa.ChainIDInjective] = make(chan *gossipv1.ObservationRequest)
+	//	chainObsvReqC[vaa.ChainIDPythNet] = make(chan *gossipv1.ObservationRequest)
 	//}
 
 	// Multiplex observation requests to the appropriate chain
@@ -865,14 +898,28 @@ func runNode(cmd *cobra.Command, args []string) {
 	// provides methods for reporting progress toward message attestation, and channels for receiving attestation lifecyclye events.
 	attestationEvents := reporter.EventListener(logger)
 
-	publicrpcService, publicrpcServer, err := publicrpcServiceRunnable(logger, *publicRPC, db, gst)
+	var gov *governor.ChainGovernor
+	if *chainGovernorEnabled {
+		logger.Info("chain governor is enabled")
+		env := governor.MainNetMode
+		if *testnetMode {
+			env = governor.TestNetMode
+		} else if *unsafeDevMode {
+			env = governor.DevNetMode
+		}
+		gov = governor.NewChainGovernor(logger, db, env)
+	} else {
+		logger.Info("chain governor is disabled")
+	}
+
+	publicrpcService, publicrpcServer, err := publicrpcServiceRunnable(logger, *publicRPC, db, gst, gov)
 
 	if err != nil {
 		log.Fatal("failed to create publicrpc service socket", zap.Error(err))
 	}
 
 	// local admin service socket
-	adminService, err := adminServiceRunnable(logger, *adminSocketPath, injectC, signedInC, obsvReqSendC, db, gst)
+	adminService, err := adminServiceRunnable(logger, *adminSocketPath, injectC, signedInC, obsvReqSendC, db, gst, gov)
 	if err != nil {
 		logger.Fatal("failed to create admin service socket", zap.Error(err))
 	}
@@ -886,7 +933,7 @@ func runNode(cmd *cobra.Command, args []string) {
 	// Run supervisor.
 	supervisor.New(rootCtx, logger, func(ctx context.Context) error {
 		if err := supervisor.Run(ctx, "p2p", p2p.Run(
-			obsvC, obsvReqC, obsvReqSendC, sendC, signedInC, priv, gk, gst, *p2pPort, *p2pNetworkID, *p2pBootstrap, *nodeName, *disableHeartbeatVerify, rootCtxCancel)); err != nil {
+			obsvC, obsvReqC, obsvReqSendC, sendC, signedInC, priv, gk, gst, *p2pPort, *p2pNetworkID, *p2pBootstrap, *nodeName, *disableHeartbeatVerify, rootCtxCancel, gov)); err != nil {
 			return err
 		}
 
@@ -985,6 +1032,30 @@ func runNode(cmd *cobra.Command, args []string) {
 			return err
 		}
 
+		//if *terraWS != "" {
+		//	logger.Info("Starting Terra watcher")
+		//	if err := supervisor.Run(ctx, "terrawatch",
+		//		cosmwasm.NewWatcher(*terraWS, *terraLCD, *terraContract, lockC, chainObsvReqC[vaa.ChainIDTerra], common.ReadinessTerraSyncing, vaa.ChainIDTerra).Run); err != nil {
+		//		return err
+		//	}
+		//}
+		//
+		//if *terra2WS != "" {
+		//	logger.Info("Starting Terra 2 watcher")
+		//	if err := supervisor.Run(ctx, "terra2watch",
+		//		cosmwasm.NewWatcher(*terra2WS, *terra2LCD, *terra2Contract, lockC, chainObsvReqC[vaa.ChainIDTerra2], common.ReadinessTerra2Syncing, vaa.ChainIDTerra2).Run); err != nil {
+		//		return err
+		//	}
+		//}
+		//
+		//if *testnetMode {
+		//	logger.Info("Starting Injective watcher")
+		//	if err := supervisor.Run(ctx, "injectivewatch",
+		//		cosmwasm.NewWatcher(*injectiveWS, *injectiveLCD, *injectiveContract, lockC, chainObsvReqC[vaa.ChainIDInjective], common.ReadinessInjectiveSyncing, vaa.ChainIDInjective).Run); err != nil {
+		//		return err
+		//	}
+		//}
+
 		//if *testnetMode {
 		//	logger.Info("Starting Injective watcher")
 		//	if err := supervisor.Run(ctx, "injectivewatch",
@@ -1002,13 +1073,32 @@ func runNode(cmd *cobra.Command, args []string) {
 		//
 		//if *solanaWsRPC != "" {
 		//	if err := supervisor.Run(ctx, "solwatch-confirmed",
-		//		solana.NewSolanaWatcher(*solanaWsRPC, *solanaRPC, solAddress, lockC, nil, rpc.CommitmentConfirmed).Run); err != nil {
+		//		solana.NewSolanaWatcher(*solanaWsRPC, *solanaRPC, solAddress, lockC, nil, rpc.CommitmentConfirmed, common.ReadinessSolanaSyncing, vaa.ChainIDSolana).Run); err != nil {
 		//		return err
 		//	}
 		//
 		//	if err := supervisor.Run(ctx, "solwatch-finalized",
-		//		solana.NewSolanaWatcher(*solanaWsRPC, *solanaRPC, solAddress, lockC, chainObsvReqC[vaa.ChainIDSolana], rpc.CommitmentFinalized).Run); err != nil {
+		//		solana.NewSolanaWatcher(*solanaWsRPC, *solanaRPC, solAddress, lockC, chainObsvReqC[vaa.ChainIDSolana], rpc.CommitmentFinalized, common.ReadinessSolanaSyncing, vaa.ChainIDSolana).Run); err != nil {
 		//		return err
+		//	}
+		//}
+		//
+		//if *pythnetWsRPC != "" {
+		//	if err := supervisor.Run(ctx, "pythwatch-confirmed",
+		//		solana.NewSolanaWatcher(*pythnetWsRPC, *pythnetRPC, pythnetAddress, lockC, nil, rpc.CommitmentConfirmed, common.ReadinessPythNetSyncing, vaa.ChainIDPythNet).Run); err != nil {
+		//		return err
+		//	}
+		//
+		//	if err := supervisor.Run(ctx, "pythwatch-finalized",
+		//		solana.NewSolanaWatcher(*pythnetWsRPC, *pythnetRPC, pythnetAddress, lockC, chainObsvReqC[vaa.ChainIDPythNet], rpc.CommitmentFinalized, common.ReadinessPythNetSyncing, vaa.ChainIDPythNet).Run); err != nil {
+		//		return err
+		//	}
+		//}
+		//
+		//if gov != nil {
+		//	err := gov.Run(ctx)
+		//	if err != nil {
+		//		log.Fatal("failed to create chain governor", zap.Error(err))
 		//	}
 		//}
 
@@ -1024,6 +1114,7 @@ func runNode(cmd *cobra.Command, args []string) {
 			gst,
 			attestationEvents,
 			notifier,
+			gov,
 		)
 		if err := supervisor.Run(ctx, "processor", p.Run); err != nil {
 			return err
