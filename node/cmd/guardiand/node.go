@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"github.com/certusone/wormhole/node/pkg/governor"
 	"github.com/certusone/wormhole/node/pkg/metaos"
 	"log"
 	"net/http"
@@ -373,9 +374,9 @@ func runNode(cmd *cobra.Command, args []string) {
 	//	readiness.RegisterComponent(common.ReadinessSolanaSyncing)
 	//}
 	//if *pythnetWsRPC != "" {
-		readiness.RegisterComponent(common.ReadinessPythNetSyncing)
-	}
-	if *terraWS != "" {
+	//	readiness.RegisterComponent(common.ReadinessPythNetSyncing)
+	//}
+	//if *terraWS != "" {
 	//	readiness.RegisterComponent(common.ReadinessTerraSyncing)
 	//}
 	//if *terra2WS != "" {
@@ -710,13 +711,13 @@ func runNode(cmd *cobra.Command, args []string) {
 	//if err != nil {
 	//	logger.Fatal("invalid Solana contract address", zap.Error(err))
 	//}
-	var pythnetAddress solana_types.PublicKey
-	if *testnetMode {
-		pythnetAddress, err = solana_types.PublicKeyFromBase58(*pythnetContract)
-		if err != nil {
-			logger.Fatal("invalid PythNet contract address", zap.Error(err))
-		}
-	}
+	//var pythnetAddress solana_types.PublicKey
+	//if *testnetMode {
+	//	pythnetAddress, err = solana_types.PublicKeyFromBase58(*pythnetContract)
+	//	if err != nil {
+	//		logger.Fatal("invalid PythNet contract address", zap.Error(err))
+	//	}
+	//}
 
 	// In devnet mode, we generate a deterministic guardian key and write it to disk.
 	//if *unsafeDevMode {
@@ -904,9 +905,9 @@ func runNode(cmd *cobra.Command, args []string) {
 		env := governor.MainNetMode
 		if *testnetMode {
 			env = governor.TestNetMode
-		} else if *unsafeDevMode {
+		} /*else if *unsafeDevMode {
 			env = governor.DevNetMode
-		}
+		}*/
 		gov = governor.NewChainGovernor(logger, db, env)
 	} else {
 		logger.Info("chain governor is disabled")
