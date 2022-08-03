@@ -817,10 +817,10 @@ func runNode(cmd *cobra.Command, args []string) {
 	//	}
 	//	priv = devnet.DeterministicP2PPrivKeyByIndex(int64(idx))
 	//} else {
-	//	priv, err = common.GetOrCreateNodeKey(logger, *nodeKeyPath)
-	//	if err != nil {
-	//		logger.Fatal("Failed to load node key", zap.Error(err))
-	//	}
+	priv, err = common.GetOrCreateNodeKey(logger, *nodeKeyPath)
+	if err != nil {
+		logger.Fatal("Failed to load node key", zap.Error(err))
+	}
 	//}
 
 	// Enable unless it is disabled. For devnet, only when --telemetryKey is set.
