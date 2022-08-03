@@ -15,7 +15,6 @@ import (
 
 	"github.com/certusone/wormhole/node/pkg/common"
 	"github.com/certusone/wormhole/node/pkg/db"
-	"github.com/certusone/wormhole/node/pkg/devnet"
 	"github.com/certusone/wormhole/node/pkg/ethereum"
 	"github.com/certusone/wormhole/node/pkg/notify/discord"
 	"github.com/certusone/wormhole/node/pkg/p2p"
@@ -128,10 +127,10 @@ var (
 
 	logLevel *string
 
-	unsafeDevMode   *bool
-	testnetMode     *bool
-	devNumGuardians *uint
-	nodeName        *string
+	//unsafeDevMode   *bool
+	testnetMode *bool
+	//devNumGuardians *uint
+	nodeName *string
 
 	publicRPC *string
 	publicWeb *string
@@ -244,9 +243,9 @@ func init() {
 
 	logLevel = NodeCmd.Flags().String("logLevel", "info", "Logging level (debug, info, warn, error, dpanic, panic, fatal)")
 
-	unsafeDevMode = NodeCmd.Flags().Bool("unsafeDevMode", false, "Launch node in unsafe, deterministic devnet mode")
+	//unsafeDevMode = NodeCmd.Flags().Bool("unsafeDevMode", false, "Launch node in unsafe, deterministic devnet mode")
 	testnetMode = NodeCmd.Flags().Bool("testnetMode", false, "Launch node in testnet mode (enables testnet-only features like Ropsten)")
-	devNumGuardians = NodeCmd.Flags().Uint("devNumGuardians", 5, "Number of devnet guardians to include in guardian set")
+	//devNumGuardians = NodeCmd.Flags().Uint("devNumGuardians", 5, "Number of devnet guardians to include in guardian set")
 	nodeName = NodeCmd.Flags().String("nodeName", "", "Node name to announce in gossip heartbeats")
 
 	publicRPC = NodeCmd.Flags().String("publicRPC", "", "Listen address for public gRPC interface")
@@ -307,23 +306,23 @@ var NodeCmd = &cobra.Command{
 var Build = "prod"
 
 func runNode(cmd *cobra.Command, args []string) {
-	if Build == "dev" && !*unsafeDevMode {
-		fmt.Println("This is a development build. --unsafeDevMode must be enabled.")
-		os.Exit(1)
-	}
-
-	if *unsafeDevMode {
-		fmt.Print(devwarning)
-	}
+	//if Build == "dev" && !*unsafeDevMode {
+	//	fmt.Println("This is a development build. --unsafeDevMode must be enabled.")
+	//	os.Exit(1)
+	//}
+	//
+	//if *unsafeDevMode {
+	//	fmt.Print(devwarning)
+	//}
 
 	common.LockMemory()
 	common.SetRestrictiveUmask()
 
 	// Refuse to run as root in production mode.
-	if !*unsafeDevMode && os.Geteuid() == 0 {
-		fmt.Println("can't run as uid 0")
-		os.Exit(1)
-	}
+	//if !*unsafeDevMode && os.Geteuid() == 0 {
+	//	fmt.Println("can't run as uid 0")
+	//	os.Exit(1)
+	//}
 
 	// Set up logging. The go-log zap wrapper that libp2p uses is compatible with our
 	// usage of zap in supervisor, which is nice.
@@ -339,18 +338,18 @@ func runNode(cmd *cobra.Command, args []string) {
 		zapcore.AddSync(zapcore.Lock(os.Stderr)),
 		zap.NewAtomicLevelAt(zapcore.Level(lvl))))
 
-	if *unsafeDevMode {
-		// Use the hostname as nodeName. For production, we don't want to do this to
-		// prevent accidentally leaking sensitive hostnames.
-		hostname, err := os.Hostname()
-		if err != nil {
-			panic(err)
-		}
-		*nodeName = hostname
-
-		// Put node name into the log for development.
-		logger = logger.Named(*nodeName)
-	}
+	//if *unsafeDevMode {
+	//	// Use the hostname as nodeName. For production, we don't want to do this to
+	//	// prevent accidentally leaking sensitive hostnames.
+	//	hostname, err := os.Hostname()
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	*nodeName = hostname
+	//
+	//	// Put node name into the log for development.
+	//	logger = logger.Named(*nodeName)
+	//}
 
 	// Override the default go-log config, which uses a magic environment variable.
 	ipfslog.SetAllLoggers(lvl)
@@ -396,10 +395,10 @@ func runNode(cmd *cobra.Command, args []string) {
 		// pprof server. NOT necessarily safe to expose publicly - only enable it in dev mode to avoid exposing it by
 		// accident. There's benefit to having pprof enabled on production nodes, but we would likely want to expose it
 		// via a dedicated port listening on localhost, or via the admin UNIX socket.
-		if *unsafeDevMode {
-			// Pass requests to http.DefaultServeMux, which pprof automatically registers with as an import side-effect.
-			router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
-		}
+		//if *unsafeDevMode {
+		//	// Pass requests to http.DefaultServeMux, which pprof automatically registers with as an import side-effect.
+		//	router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
+		//}
 
 		// Simple endpoint exposing node readiness (safe to expose to untrusted clients)
 		router.HandleFunc("/readyz", readiness.Handler)
@@ -415,35 +414,34 @@ func runNode(cmd *cobra.Command, args []string) {
 	}
 
 	// In devnet mode, we automatically set a number of flags that rely on deterministic keys.
-	if *unsafeDevMode {
-		g0key, err := peer.IDFromPrivateKey(devnet.DeterministicP2PPrivKeyByIndex(0))
-		if err != nil {
-			panic(err)
-		}
-
-		// Use the first guardian node as bootstrap
-		*p2pBootstrap = fmt.Sprintf("/dns4/guardian-0.guardian/udp/%d/quic/p2p/%s", *p2pPort, g0key.String())
-
-		// Deterministic ganache ETH devnet address.
-		*ethContract = devnet.GanacheWormholeContractAddress.Hex()
-		*metaosContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*bscContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*polygonContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*avalancheContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*oasisContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*auroraContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*fantomContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*karuraContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*acalaContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*klaytnContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*celoContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*moonbeamContract = devnet.GanacheWormholeContractAddress.Hex()
-		//*neonContract = devnet.GanacheWormholeContractAddress.Hex()
-	}
+	//if *unsafeDevMode {
+	//	g0key, err := peer.IDFromPrivateKey(devnet.DeterministicP2PPrivKeyByIndex(0))
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//
+	//	// Use the first guardian node as bootstrap
+	//	*p2pBootstrap = fmt.Sprintf("/dns4/guardian-0.guardian/udp/%d/quic/p2p/%s", *p2pPort, g0key.String())
+	//
+	//	// Deterministic ganache ETH devnet address.
+	//	*ethContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*bscContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*polygonContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*avalancheContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*oasisContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*auroraContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*fantomContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*karuraContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*acalaContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*klaytnContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*celoContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*moonbeamContract = devnet.GanacheWormholeContractAddress.Hex()
+	//	*neonContract = devnet.GanacheWormholeContractAddress.Hex()
+	//}
 
 	// Verify flags
 
-	if *nodeKeyPath == "" && !*unsafeDevMode { // In devnet mode, keys are deterministically generated.
+	if *nodeKeyPath == "" /*&& !*unsafeDevMode*/ { // In devnet mode, keys are deterministically generated.
 		logger.Fatal("Please specify --nodeKey")
 	}
 	if *guardianKeyPath == "" {
@@ -689,17 +687,17 @@ func runNode(cmd *cobra.Command, args []string) {
 	//}
 
 	// In devnet mode, we generate a deterministic guardian key and write it to disk.
-	if *unsafeDevMode {
-		gk, err := generateDevnetGuardianKey()
-		if err != nil {
-			logger.Fatal("failed to generate devnet guardian key", zap.Error(err))
-		}
-
-		err = writeGuardianKey(gk, "auto-generated deterministic devnet key", *guardianKeyPath, true)
-		if err != nil {
-			logger.Fatal("failed to write devnet guardian key", zap.Error(err))
-		}
-	}
+	//if *unsafeDevMode {
+	//	gk, err := generateDevnetGuardianKey()
+	//	if err != nil {
+	//		logger.Fatal("failed to generate devnet guardian key", zap.Error(err))
+	//	}
+	//
+	//	err = writeGuardianKey(gk, "auto-generated deterministic devnet key", *guardianKeyPath, true)
+	//	if err != nil {
+	//		logger.Fatal("failed to write devnet guardian key", zap.Error(err))
+	//	}
+	//}
 
 	// Database
 	dbPath := path.Join(*dataDir, "db")
@@ -812,21 +810,21 @@ func runNode(cmd *cobra.Command, args []string) {
 
 	// Load p2p private key
 	var priv crypto.PrivKey
-	if *unsafeDevMode {
-		idx, err := devnet.GetDevnetIndex()
-		if err != nil {
-			logger.Fatal("Failed to parse hostname - are we running in devnet?")
-		}
-		priv = devnet.DeterministicP2PPrivKeyByIndex(int64(idx))
-	} else {
-		priv, err = common.GetOrCreateNodeKey(logger, *nodeKeyPath)
-		if err != nil {
-			logger.Fatal("Failed to load node key", zap.Error(err))
-		}
-	}
+	//if *unsafeDevMode {
+	//	idx, err := devnet.GetDevnetIndex()
+	//	if err != nil {
+	//		logger.Fatal("Failed to parse hostname - are we running in devnet?")
+	//	}
+	//	priv = devnet.DeterministicP2PPrivKeyByIndex(int64(idx))
+	//} else {
+	//	priv, err = common.GetOrCreateNodeKey(logger, *nodeKeyPath)
+	//	if err != nil {
+	//		logger.Fatal("Failed to load node key", zap.Error(err))
+	//	}
+	//}
 
 	// Enable unless it is disabled. For devnet, only when --telemetryKey is set.
-	if !*disableTelemetry && (!*unsafeDevMode || *unsafeDevMode && *telemetryKey != "") {
+	if !*disableTelemetry /*&& (!*unsafeDevMode || *unsafeDevMode && *telemetryKey != "")*/ {
 		logger.Info("Telemetry enabled")
 
 		if *telemetryKey == "" {
@@ -893,7 +891,7 @@ func runNode(cmd *cobra.Command, args []string) {
 		}
 
 		if err := supervisor.Run(ctx, "ethwatch",
-			ethereum.NewEthWatcher(*ethRPC, ethContractAddr, "eth", common.ReadinessEthSyncing, vaa.ChainIDEthereum, lockC, setC, 1, chainObsvReqC[vaa.ChainIDEthereum], *unsafeDevMode).Run); err != nil {
+			ethereum.NewEthWatcher(*ethRPC, ethContractAddr, "eth", common.ReadinessEthSyncing, vaa.ChainIDEthereum, lockC, setC, 1, chainObsvReqC[vaa.ChainIDEthereum], false).Run); err != nil {
 			return err
 		}
 
