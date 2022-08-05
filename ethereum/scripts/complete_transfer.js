@@ -21,6 +21,8 @@ module.exports = async function (callback) {
 
         console.log(result);
 
+        console.log("Finished");
+
         callback();
     }
     catch (e) {

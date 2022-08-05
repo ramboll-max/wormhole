@@ -35,3 +35,4 @@ console.log(json)
 const res = await client.execute(acc_address, asset, executeMsg, executeFee);
 console.log(JSON.stringify(res, "", " "));
 
+console.log("Finished")

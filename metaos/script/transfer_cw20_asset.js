@@ -23,7 +23,7 @@ const executeFee = calculateFee(2_500_000, gasPrice);
 const amount = process.env.AMOUNT;
 const recipient_chain = 2;
 const eth_recipient = process.env.ETH_RECIPIENT;
-const recipient = "0000000000000000000000000" + eth_recipient.substring(2);
+const recipient = "000000000000000000000000" + eth_recipient.substring(2);
 const nonce = Math.round(Math.random() * 100000);
 const executeMsg = {
     initiate_transfer: {

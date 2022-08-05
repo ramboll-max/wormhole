@@ -30,3 +30,5 @@ console.log(json)
 const submitVAARes = await client.execute(acc_address, tokenBridgeAddress, executeMsg, executeFee);
 console.log(JSON.stringify(submitVAARes, "", " "));
 
+console.log("Finished");
+
