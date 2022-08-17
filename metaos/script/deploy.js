@@ -128,7 +128,7 @@ const govAddressBase64 = Buffer.from(govAddress, "hex").toString("base64");
 addresses["wormhole.wasm"] = await instantiate("wormhole.wasm", {
   gov_chain: govChain,
   gov_address: govAddressBase64,
-  guardian_set_expirity: 86400,
+  guardian_set_expiry: 86400,
   initial_guardian_set: {
     addresses: init_guardians.map((hex) => {
       return {
@@ -137,6 +137,8 @@ addresses["wormhole.wasm"] = await instantiate("wormhole.wasm", {
     }),
     expiration_time: 0,
   },
+  chain_id: 20001,
+  fee_denom: "umtos",
 });
 
 addresses["token_bridge_metaos.wasm"] = await instantiate(
@@ -145,6 +147,7 @@ addresses["token_bridge_metaos.wasm"] = await instantiate(
     gov_chain: govChain,
     gov_address: govAddressBase64,
     wormhole_contract: addresses["wormhole.wasm"],
+    chain_id: 20001,
   }
 );
 
