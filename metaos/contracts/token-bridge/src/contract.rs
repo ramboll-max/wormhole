@@ -75,7 +75,6 @@ use crate::{
         Asset,
         AssetInfo,
     },
-    CHAIN_ID,
     msg::{
         DenomWrappedAssetInfoResponse,
         ExecuteMsg,
@@ -148,6 +147,7 @@ pub fn instantiate(
         gov_chain: msg.gov_chain,
         gov_address: msg.gov_address.into(),
         wormhole_contract: msg.wormhole_contract,
+        chain_id: msg.chain_id,
     };
     config(deps.storage).save(&state)?;
 
@@ -587,7 +587,7 @@ fn handle_create_asset_meta_token(
     let token_info: TokenInfoResponse = deps.querier.query(&request)?;
 
     let meta: AssetMeta = AssetMeta {
-        token_chain: CHAIN_ID,
+        token_chain: cfg.chain_id,
         token_address: external_id.clone(),
         decimals: token_info.decimals,
         symbol: extend_string_to_32(&token_info.symbol),
@@ -609,7 +609,7 @@ fn handle_create_asset_meta_token(
             // forward coins sent to this message
             funds: info.funds,
         }))
-        .add_attribute("meta.token_chain", CHAIN_ID.to_string())
+        .add_attribute("meta.token_chain", cfg.chain_id.to_string())
         .add_attribute("meta.token", asset_address)
         .add_attribute("meta.decimals", token_info.decimals.to_string())
         .add_attribute("meta.asset_id", hex::encode(external_id.serialize()))
@@ -648,7 +648,7 @@ fn handle_create_asset_meta_native_token(
     let external_id = token_id.store(deps.storage)?;
 
     let meta: AssetMeta = AssetMeta {
-        token_chain: CHAIN_ID,
+        token_chain: cfg.chain_id,
         token_address: external_id.clone(),
         decimals: dec,
         symbol: extend_string_to_32(
@@ -672,7 +672,7 @@ fn handle_create_asset_meta_native_token(
             // forward coins sent to this message
             funds: info.funds,
         }))
-        .add_attribute("meta.token_chain", CHAIN_ID.to_string())
+        .add_attribute("meta.token_chain", cfg.chain_id.to_string())
         .add_attribute("meta.symbol", symbol)
         .add_attribute("meta.decimals", dec.to_string())
         .add_attribute("meta.asset_id", hex::encode(external_id.serialize()))
@@ -778,13 +778,14 @@ fn handle_governance_payload(
     env: Env,
     gov_packet: &GovernancePacket,
 ) -> StdResult<Response<CustomMsg>> {
+    let cfg = config_read(deps.storage).load()?;
     let module = get_string_from_32(&gov_packet.module);
 
     if module != "TokenBridge" {
         return Err(StdError::generic_err("this is not a valid module"));
     }
 
-    if gov_packet.chain != 0 && gov_packet.chain != CHAIN_ID {
+    if gov_packet.chain != 0 && gov_packet.chain != cfg.chain_id {
         return Err(StdError::generic_err(
             "the governance VAA is for another chain",
         ));
@@ -884,6 +885,7 @@ fn handle_complete_transfer_token(
     data: &Vec<u8>,
     relayer_address: &HumanAddr,
 ) -> StdResult<Response<CustomMsg>> {
+    let cfg = config_read(deps.storage).load()?;
     let transfer_info = match transfer_type {
         TransferType::WithoutPayload => TransferInfo::deserialize(data)?,
         TransferType::WithPayload { payload: _ } => {
@@ -899,7 +901,7 @@ fn handle_complete_transfer_token(
         return Err(StdError::generic_err("invalid emitter"));
     }
 
-    if transfer_info.recipient_chain != CHAIN_ID {
+    if transfer_info.recipient_chain != cfg.chain_id {
         return Err(StdError::generic_err(
             "this transfer is not directed at this chain",
         ));
@@ -1064,6 +1066,7 @@ fn handle_complete_transfer_token_native(
     data: &Vec<u8>,
     relayer_address: &HumanAddr,
 ) -> StdResult<Response<CustomMsg>> {
+    let cfg = config_read(deps.storage).load()?;
     let transfer_info = match transfer_type {
         TransferType::WithoutPayload => TransferInfo::deserialize(data)?,
         TransferType::WithPayload { payload: () } => {
@@ -1079,7 +1082,7 @@ fn handle_complete_transfer_token_native(
         return Err(StdError::generic_err("invalid emitter"));
     }
 
-    if transfer_info.recipient_chain != CHAIN_ID {
+    if transfer_info.recipient_chain != cfg.chain_id {
         return Err(StdError::generic_err(
             "this transfer is not directed at this chain",
         ));
@@ -1198,7 +1201,8 @@ fn handle_initiate_transfer_token(
     transfer_type: TransferType<Vec<u8>>,
     nonce: u32,
 ) -> StdResult<Response<CustomMsg>> {
-    if recipient_chain == CHAIN_ID {
+    let cfg = config_read(deps.storage).load()?;
+    if recipient_chain == cfg.chain_id {
         return ContractError::SameSourceAndTarget.std_err();
     }
     if amount.is_zero() {
@@ -1206,7 +1210,6 @@ fn handle_initiate_transfer_token(
     }
 
     let asset_chain: u16;
-
     let asset_canonical: CanonicalAddr = deps.api.addr_canonicalize(&asset)?;
 
     let mut submessages: Vec<SubMsg<CustomMsg>> = vec![];
@@ -1253,7 +1256,7 @@ fn handle_initiate_transfer_token(
         TRANSFER_FROM_REPLY_ID,
     ));
 
-    asset_chain = CHAIN_ID;
+    asset_chain = cfg.chain_id;
     let address_human = deps.api.addr_humanize(&asset_canonical)?;
     // we store here just in case the token is transferred out before it's attested
     let external_id = TokenId::Contract(ContractId::NativeCW20 {
@@ -1363,7 +1366,8 @@ fn initiate_transfer_wrapped_token(
     asset_address: [u8; 32],
     wormhole_fees: Vec<Coin>,
 ) -> StdResult<Response<CustomMsg>> {
-    if recipient_chain == CHAIN_ID {
+    let cfg = config_read(deps.storage).load()?;
+    if recipient_chain == cfg.chain_id {
         return ContractError::SameSourceAndTarget.std_err();
     }
     if amount.is_zero() {
@@ -1386,8 +1390,8 @@ fn initiate_transfer_wrapped_token(
 
     let asset_chain = denom_wrapped_asset_chain_id_read(deps.storage)
         .load(denom.as_bytes())?;
-
-    let external_id = ExternalTokenId::from_foreign_token(asset_chain, asset_address);
+    assert!(asset_chain != cfg.chain_id, "Expected a foreign chain id.");
+    let external_id = ExternalTokenId::from_foreign_token(asset_address);
 
     // Call query DenomMetadata for bank module
     let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom: denom.clone() }).into();
@@ -1493,7 +1497,8 @@ fn initiate_transfer_native_token(
     nonce: u32,
     wormhole_fees: Vec<Coin>,
 ) -> StdResult<Response<CustomMsg>> {
-    if recipient_chain == CHAIN_ID {
+    let cfg = config_read(deps.storage).load()?;
+    if recipient_chain == cfg.chain_id {
         return ContractError::SameSourceAndTarget.std_err();
     }
     if amount.is_zero() {
@@ -1506,7 +1511,7 @@ fn initiate_transfer_native_token(
     let cfg: ConfigInfo = config_read(deps.storage).load()?;
     let mut messages: Vec<CosmosMsg<CustomMsg>> = vec![];
 
-    let asset_chain: u16 = CHAIN_ID;
+    let asset_chain: u16 = cfg.chain_id;
     // we store here just in case the token is transferred out before it's attested
     let asset_address = TokenId::Bank { denom: denom.clone() }.store(deps.storage)?;
 
@@ -1627,13 +1632,14 @@ fn query_denom_asset_info(deps: Deps<CustomQuery>, denom: String) -> StdResult<D
             })
         },
         Err(_) => {
+            let cfg = config_read(deps.storage).load()?;
             // If it is not a wrapped asset, query denom metadata
             let metadata_req = CustomQuery::Bank(BankQuery::DenomMetadata { denom: denom.clone() }).into();
             if let Ok(_) = deps.querier.query::<DenomMetadataResponse>(&metadata_req) {
                 Ok(DenomWrappedAssetInfoResponse {
                     found: 1,
                     is_wrapped: 0,
-                    asset_chain: CHAIN_ID,
+                    asset_chain: cfg.chain_id,
                     asset_address: Binary::from(ExternalTokenId::from_bank_token(&denom)?.serialize())
                 })
             } else {
@@ -1641,7 +1647,7 @@ fn query_denom_asset_info(deps: Deps<CustomQuery>, denom: String) -> StdResult<D
                 Ok(DenomWrappedAssetInfoResponse {
                     found: 0,
                     is_wrapped: 0,
-                    asset_chain: CHAIN_ID,
+                    asset_chain: cfg.chain_id,
                     asset_address: Binary::default()
                 })
             }
@@ -1650,9 +1656,10 @@ fn query_denom_asset_info(deps: Deps<CustomQuery>, denom: String) -> StdResult<D
 }
 
 fn query_external_id(deps: Deps<CustomQuery>, external_id: Binary) -> StdResult<ExternalIdResponse> {
+    let cfg = config_read(deps.storage).load()?;
     let external_id = ExternalTokenId::deserialize(external_id.to_array()?);
     Ok(ExternalIdResponse {
-        token_id: external_id.to_token_id(deps.storage, CHAIN_ID)?,
+        token_id: external_id.to_token_id(deps.storage, cfg.chain_id)?,
     })
 }
 

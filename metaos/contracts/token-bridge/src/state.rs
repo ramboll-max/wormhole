@@ -44,11 +44,14 @@ pub static NATIVE_CW20_HASHES_KEY: &[u8] = b"native_cw20_hashes";
 // Guardian set information
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
-    // governance contract details
+    // Governance chain (typically MetaOS, i.e. chain id 20001)
     pub gov_chain: u16,
+    // Address of governance contract (typically 0x0000000000000000000000000000000000000000000000000000000000000008)
     pub gov_address: Vec<u8>,
-
+    // Address of the core bridge contract
     pub wormhole_contract: HumanAddr,
+    // The wormhole id of the current chain.
+    pub chain_id: u16,
 }
 
 pub fn config(storage: &mut dyn Storage) -> Singleton<ConfigInfo> {

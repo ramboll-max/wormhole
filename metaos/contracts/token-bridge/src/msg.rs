@@ -15,6 +15,8 @@ use crate::token_address::{
 
 type HumanAddr = String;
 
+// The instantiation parameters of the token bridge contract. See
+// [`crate::state::ConfigInfo`] for more details on what these fields mean.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     // governance contract details
@@ -22,6 +24,8 @@ pub struct InstantiateMsg {
     pub gov_address: Binary,
 
     pub wormhole_contract: HumanAddr,
+
+    pub chain_id: u16,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -43,21 +43,29 @@ pub static SEQUENCE_KEY: &[u8] = b"sequence";
 pub static WRAPPED_ASSET_KEY: &[u8] = b"wrapped_asset";
 pub static WRAPPED_ASSET_ADDRESS_KEY: &[u8] = b"wrapped_asset_address";
 
-// Guardian set information
+// Information about this contract's general parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
     // Current active guardian set
     pub guardian_set_index: u32,
 
-    // Period for which a guardian set stays active after it has been replaced
-    pub guardian_set_expirity: u64,
+    // Period for which a guardian set stays active after it has been replaced.
+    pub guardian_set_expiry: u64,
 
-    // governance contract details
+    // Governance chain (typically MetaOS, i.e. chain id 20001)
     pub gov_chain: u16,
+    // Address of governance contract (typically 0x0000000000000000000000000000000000000000000000000000000000000008)
     pub gov_address: Vec<u8>,
 
     // Message sending fee
     pub fee: Coin,
+
+    // The wormhole id of the current chain.
+    pub chain_id: u16,
+
+    // The denom in which transaction fees and wormhole fees are paid.
+    // Typically the native denom of the current chain.
+    pub fee_denom: String,
 }
 
 // Validator Action Approval(VAA) data
@@ -179,7 +187,6 @@ pub struct GuardianAddress {
     pub bytes: Binary, // 20-byte addresses
 }
 
-use crate::contract::FEE_DENOMINATION;
 #[cfg(test)]
 use hex;
 
@@ -357,10 +364,10 @@ pub struct SetFee {
 }
 
 impl SetFee {
-    pub fn deserialize(data: &[u8]) -> StdResult<Self> {
+    pub fn deserialize(data: &[u8], fee_denom: String) -> StdResult<Self> {
         let (_, amount) = data.get_u256(0);
         let fee = Coin {
-            denom: String::from(FEE_DENOMINATION),
+            denom: fee_denom,
             amount: Uint128::new(amount),
         };
         Ok(SetFee { fee })
@@ -374,12 +381,12 @@ pub struct TransferFee {
 }
 
 impl TransferFee {
-    pub fn deserialize(data: &[u8]) -> StdResult<Self> {
+    pub fn deserialize(data: &[u8], fee_denom: String) -> StdResult<Self> {
         let recipient = data.get_address(0);
 
         let (_, amount) = data.get_u256(32);
         let amount = Coin {
-            denom: String::from(FEE_DENOMINATION),
+            denom: fee_denom,
             amount: Uint128::new(amount),
         };
         Ok(TransferFee { amount, recipient })

@@ -76,12 +76,9 @@ use std::convert::TryFrom;
 
 type HumanAddr = String;
 
-// Chain ID of MetaOS
-const CHAIN_ID: u16 = 20001;
 
 // Lock assets fee amount and denomination
 const FEE_AMOUNT: u128 = 0;
-pub const FEE_DENOMINATION: &str = "umtos";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
@@ -100,8 +97,10 @@ pub fn instantiate(
         gov_chain: msg.gov_chain,
         gov_address: msg.gov_address.as_slice().to_vec(),
         guardian_set_index: 0,
-        guardian_set_expirity: msg.guardian_set_expirity,
-        fee: Coin::new(FEE_AMOUNT, FEE_DENOMINATION),
+        guardian_set_expiry: msg.guardian_set_expiry,
+        fee: Coin::new(FEE_AMOUNT, &msg.fee_denom),
+        chain_id: msg.chain_id,
+        fee_denom: msg.fee_denom,
     };
     config(deps.storage).save(&state)?;
 
@@ -151,6 +150,7 @@ fn handle_submit_vaa(
 
 fn handle_governance_payload(deps: DepsMut, env: Env, data: &[u8]) -> StdResult<Response> {
     let gov_packet = GovernancePacket::deserialize(data)?;
+    let state = config_read(deps.storage).load()?;
 
     let module = String::from_utf8(gov_packet.module).unwrap();
     let module: String = module.chars().filter(|c| c != &'\0').collect();
@@ -159,7 +159,7 @@ fn handle_governance_payload(deps: DepsMut, env: Env, data: &[u8]) -> StdResult<
         return Err(StdError::generic_err("this is not a valid module"));
     }
 
-    if gov_packet.chain != 0 && gov_packet.chain != CHAIN_ID {
+    if gov_packet.chain != 0 && gov_packet.chain != state.chain_id {
         return Err(StdError::generic_err(
             "the governance VAA is for another chain",
         ));
@@ -272,7 +272,7 @@ fn vaa_update_guardian_set(deps: DepsMut, env: Env, data: &[u8]) -> StdResult<Re
     config(deps.storage).save(&state)?;
 
     let mut old_guardian_set = guardian_set_get(deps.storage, old_guardian_set_index)?;
-    old_guardian_set.expiration_time = env.block.time.seconds() + state.guardian_set_expirity;
+    old_guardian_set.expiration_time = env.block.time.seconds() + state.guardian_set_expiry;
     guardian_set_set(deps.storage, old_guardian_set_index, &old_guardian_set)?;
 
     Ok(Response::new()
@@ -298,8 +298,8 @@ fn vaa_update_contract(_deps: DepsMut, env: Env, data: &[u8]) -> StdResult<Respo
 }
 
 pub fn handle_set_fee(deps: DepsMut, _env: Env, data: &[u8]) -> StdResult<Response> {
-    let set_fee_msg = SetFee::deserialize(data)?;
-
+    let state = config_read(deps.storage).load()?;
+    let set_fee_msg = SetFee::deserialize(data, state.fee_denom.clone())?;
     // Save new fees
     let mut state = config_read(deps.storage).load()?;
     state.fee = set_fee_msg.fee;
@@ -312,7 +312,9 @@ pub fn handle_set_fee(deps: DepsMut, _env: Env, data: &[u8]) -> StdResult<Respon
 }
 
 pub fn handle_transfer_fee(deps: DepsMut, _env: Env, data: &[u8]) -> StdResult<Response> {
-    let transfer_msg = TransferFee::deserialize(data)?;
+    let state = config_read(deps.storage).load()?;
+
+    let transfer_msg = TransferFee::deserialize(data, state.fee_denom)?;
 
     Ok(Response::new().add_message(CosmosMsg::Bank(BankMsg::Send {
         to_address: deps.api.addr_humanize(&transfer_msg.recipient)?.to_string(),
@@ -342,7 +344,7 @@ fn handle_post_message(
     Ok(Response::new()
         .add_attribute("message.message", hex::encode(message))
         .add_attribute("message.sender", hex::encode(emitter))
-        .add_attribute("message.chain_id", CHAIN_ID.to_string())
+        .add_attribute("message.chain_id", state.chain_id.to_string())
         .add_attribute("message.nonce", nonce.to_string())
         .add_attribute("message.sequence", sequence.to_string())
         .add_attribute("message.block_time", env.block.time.seconds().to_string()))

@@ -48,7 +48,9 @@ fn do_init(guardians: &[GuardianAddress]) -> OwnedDeps<MockStorage, MockApi, Moc
             addresses: guardians.to_vec(),
             expiration_time: 100,
         },
-        guardian_set_expirity: 50,
+        guardian_set_expiry: 50,
+        chain_id: 20001,
+        fee_denom: "umtos".to_string(),
     };
     let env = mock_env();
     let info = mock_info(INITIALIZER, &[]);
@@ -60,10 +62,12 @@ fn do_init(guardians: &[GuardianAddress]) -> OwnedDeps<MockStorage, MockApi, Moc
         get_config_info(&deps.storage),
         ConfigInfo {
             guardian_set_index: 0,
-            guardian_set_expirity: 50,
+            guardian_set_expiry: 50,
             gov_chain: 0,
             gov_address: GOV_ADDR.to_vec(),
-            fee: Coin::new(0, "uluna"),
+            fee: Coin::new(0, "umtos"),
+            chain_id: 20001,
+            fee_denom: "umtos".to_string(),
         }
     );
     deps
@@ -71,10 +75,10 @@ fn do_init(guardians: &[GuardianAddress]) -> OwnedDeps<MockStorage, MockApi, Moc
 
 #[test]
 fn init_works() {
-    let guardians = [GuardianAddress::from(GuardianAddress {
+    let guardians = [GuardianAddress {
         bytes: hex::decode("beFA429d57cD18b7F8A4d91A2da9AB4AF05d0FBe")
             .expect("Decoding failed")
             .into(),
-    })];
+    }];
     let _deps = do_init(&guardians);
 }

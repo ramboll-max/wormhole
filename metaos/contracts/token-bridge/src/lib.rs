@@ -9,6 +9,3 @@ pub mod asset;
 
 #[cfg(test)]
 mod testing;
-
-// Chain ID of MetaOS
-pub const CHAIN_ID: u16 = 20001;
