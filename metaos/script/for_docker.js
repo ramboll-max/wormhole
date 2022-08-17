@@ -120,7 +120,7 @@ const govAddressBase64 = Buffer.from(govAddress, "hex").toString("base64");
 const wormholeAddress = await instantiate("wormhole.wasm", {
   gov_chain: govChain,
   gov_address: govAddressBase64,
-  guardian_set_expirity: 86400,
+  guardian_set_expiry: 86400,
   initial_guardian_set: {
     addresses: init_guardians.map((hex) => {
       return {
@@ -129,6 +129,8 @@ const wormholeAddress = await instantiate("wormhole.wasm", {
     }),
     expiration_time: 0,
   },
+  chain_id: 20001,
+  fee_denom: "umtos",
 });
 
 console.log(`Wormhole Contract address: ${wormholeAddress}`);
@@ -139,6 +141,7 @@ const tokenBridgeAddress = await instantiate(
     gov_chain: govChain,
     gov_address: govAddressBase64,
     wormhole_contract: wormholeAddress,
+    chain_id: 20001,
   }
 );
 
