@@ -15,7 +15,7 @@ const (
 	MessagePublicationDDLTemplate = `CREATE TABLE %s.message_publication (
 	emitter_chain int4 NOT NULL,
 	emitter_address varchar(128) NOT NULL,
-	msg_sequence int8 NOT NULL,
+	msg_sequence numeric(32) NOT NULL,
 	vaa_version int2 NOT NULL,
 	guardian_set_index int4 NOT NULL,
 	pub_timestamp timestamptz NOT NULL,
@@ -29,7 +29,7 @@ const (
 	QuorumStateDDLTemplate = `CREATE TABLE %s.quorum_state (
 	emitter_chain int4 NOT NULL,
 	emitter_address varchar(128) NOT NULL,
-	msg_sequence int8 NOT NULL,
+	msg_sequence numeric(32) NOT NULL,
 	signed_vaa text NOT NULL,
 	create_time timestamptz NOT NULL,
 	CONSTRAINT quorum_state_pkey PRIMARY KEY (emitter_chain, emitter_address, msg_sequence)
