@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/certusone/wormhole/node/pkg/vaa"
+	"go.uber.org/zap"
 	"reflect"
 	"strconv"
 	"strings"
@@ -103,6 +104,24 @@ func (w *postgreSqlWriter) writeTokenTransfer(tx *sql.Tx, tokenTransfer *TokenTr
 
 func (w *postgreSqlWriter) writeAssetMeta(tx *sql.Tx, assetMeta *AssetMetaPayload) (tableId int64, err error) {
 	builder := strings.Builder{}
+	builder.WriteString("select id from ")
+	builder.WriteString(w.dbCfg.Schema)
+	builder.WriteString(".")
+	builder.WriteString(TableNamePayloadAssetMeta)
+	builder.WriteString(" where token_address=$1 and token_chain=$2 limit 1")
+	query := builder.String()
+	tokenAddressStr := assetMeta.TokenAddress.String()
+	row := tx.QueryRowContext(w.ctx, query, tokenAddressStr, assetMeta.TokenChain)
+	err = row.Scan(&tableId)
+	if err == nil {
+		w.logger.Warn("Asset meta exist.",
+			zap.String("token_address", tokenAddressStr),
+			zap.String("token_chain", assetMeta.TokenChain.String()),
+			zap.Int64("table_id", tableId))
+		return tableId, nil
+	}
+
+	builder = strings.Builder{}
 	builder.WriteString("insert into ")
 	builder.WriteString(w.dbCfg.Schema)
 	builder.WriteString(".")
@@ -110,9 +129,9 @@ func (w *postgreSqlWriter) writeAssetMeta(tx *sql.Tx, assetMeta *AssetMetaPayloa
 	builder.WriteString(" (payload_id, token_address, token_chain, decimals, symbol, token_name, create_time)")
 	builder.WriteString(" values ($1,$2,$3,$4,$5,$6,now()) RETURNING id")
 	exec := builder.String()
-	row := tx.QueryRowContext(w.ctx, exec,
+	row = tx.QueryRowContext(w.ctx, exec,
 		assetMeta.PayloadID,
-		assetMeta.TokenAddress.String(),
+		tokenAddressStr,
 		assetMeta.TokenChain,
 		assetMeta.Decimals,
 		assetMeta.Symbol,
