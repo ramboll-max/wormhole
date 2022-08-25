@@ -60,6 +60,7 @@ require (
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/cosmos/cosmos-sdk v0.44.5
 	github.com/google/uuid v1.2.0
+	github.com/lib/pq v1.10.2
 )
 
 require (

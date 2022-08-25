@@ -125,10 +125,10 @@ var (
 	//
 	//solanaWsRPC *string
 	//solanaRPC   *string
-
-	pythnetContract *string
-	pythnetWsRPC    *string
-	pythnetRPC      *string
+	//
+	//pythnetContract *string
+	//pythnetWsRPC    *string
+	//pythnetRPC      *string
 
 	logLevel *string
 
@@ -157,6 +157,15 @@ var (
 	bigTableTableName          *string
 	bigTableTopicName          *string
 	bigTableKeyPath            *string
+
+	postgreSQLPersistenceEnabled *bool
+	postgreSQLHost               *string
+	postgreSQLPort               *int
+	postgreSQLSchema             *string
+	postgreSQLDatabase           *string
+	postgreSQLUser               *string
+	postgreSQLPassword           *string
+	postgreSQLSSLMode            *string
 
 	chainGovernorEnabled *bool
 )
@@ -247,10 +256,10 @@ func init() {
 	//
 	//solanaWsRPC = NodeCmd.Flags().String("solanaWS", "", "Solana Websocket URL (required")
 	//solanaRPC = NodeCmd.Flags().String("solanaRPC", "", "Solana RPC URL (required")
-
-	pythnetContract = NodeCmd.Flags().String("pythnetContract", "", "Address of the PythNet program (required)")
-	pythnetWsRPC = NodeCmd.Flags().String("pythnetWS", "", "PythNet Websocket URL (required")
-	pythnetRPC = NodeCmd.Flags().String("pythnetRPC", "", "PythNet RPC URL (required")
+	//
+	//pythnetContract = NodeCmd.Flags().String("pythnetContract", "", "Address of the PythNet program (required)")
+	//pythnetWsRPC = NodeCmd.Flags().String("pythnetWS", "", "PythNet Websocket URL (required")
+	//pythnetRPC = NodeCmd.Flags().String("pythnetRPC", "", "PythNet RPC URL (required")
 
 	logLevel = NodeCmd.Flags().String("logLevel", "info", "Logging level (debug, info, warn, error, dpanic, panic, fatal)")
 
@@ -284,6 +293,15 @@ func init() {
 	bigTableTopicName = NodeCmd.Flags().String("bigTableTopicName", "", "GCP topic name to publish to")
 	bigTableKeyPath = NodeCmd.Flags().String("bigTableKeyPath", "", "Path to json Service Account key")
 
+	postgreSQLPersistenceEnabled = NodeCmd.Flags().Bool("pgEnabled", false, "Turn on forwarding events to PostgreSQL")
+	postgreSQLHost = NodeCmd.Flags().String("pgHost", reporter.DefaultHost, "Host of PostgreSQL server")
+	postgreSQLPort = NodeCmd.Flags().Int("pgPort", reporter.DefaultPort, "Port of PostgreSQL server")
+	postgreSQLDatabase = NodeCmd.Flags().String("pgDatabase", reporter.DefaultDataBase, "Database will be used of PostgreSQL server")
+	postgreSQLSchema = NodeCmd.Flags().String("pgSchema", reporter.DefaultSchema, "Schema will be used of PostgreSQL server")
+	postgreSQLUser = NodeCmd.Flags().String("pgUser", "", "User account of PostgreSQL server")
+	postgreSQLPassword = NodeCmd.Flags().String("pgPassword", "", "Password for the user of PostgreSQL server")
+	postgreSQLSSLMode = NodeCmd.Flags().String("pgSSL", reporter.DefaultSSLMode, "SSL mode of PostgreSQL server, default 'disable'")
+
 	chainGovernorEnabled = NodeCmd.Flags().Bool("chainGovernorEnabled", false, "Run the chain governor")
 }
 
@@ -296,14 +314,14 @@ var (
 //
 // We already forcibly override RPC URLs and keys in dev mode to prevent security
 // risks from operator error, but an extra warning won't hurt.
-const devwarning = `
-        +++++++++++++++++++++++++++++++++++++++++++++++++++
-        |   NODE IS RUNNING IN INSECURE DEVELOPMENT MODE  |
-        |                                                 |
-        |      Do not use --unsafeDevMode in prod.        |
-        +++++++++++++++++++++++++++++++++++++++++++++++++++
-
-`
+//const devwarning = `
+//        +++++++++++++++++++++++++++++++++++++++++++++++++++
+//        |   NODE IS RUNNING IN INSECURE DEVELOPMENT MODE  |
+//        |                                                 |
+//        |      Do not use --unsafeDevMode in prod.        |
+//        +++++++++++++++++++++++++++++++++++++++++++++++++++
+//
+//`
 
 // NodeCmd represents the node command
 var NodeCmd = &cobra.Command{
@@ -668,6 +686,15 @@ func runNode(cmd *cobra.Command, args []string) {
 		}
 		if *bigTableKeyPath == "" {
 			logger.Fatal("Please specify --bigTableKeyPath")
+		}
+	}
+
+	if *postgreSQLPersistenceEnabled {
+		if *postgreSQLUser == "" {
+			logger.Fatal("Please specify --pgUser")
+		}
+		if *postgreSQLPassword == "" {
+			logger.Fatal("Please specify --pgPassword")
 		}
 	}
 
@@ -1144,6 +1171,21 @@ func runNode(cmd *cobra.Command, args []string) {
 				GcpKeyFilePath:  *bigTableKeyPath,
 			}
 			if err := supervisor.Run(ctx, "bigtable", reporter.BigTableWriter(attestationEvents, bigTableConnection)); err != nil {
+				return err
+			}
+		}
+
+		if *postgreSQLPersistenceEnabled {
+			pgCfg := &reporter.PostgreSqlConnectionConfig{
+				Host:     *postgreSQLHost,
+				Port:     *postgreSQLPort,
+				Database: *postgreSQLDatabase,
+				Schema:   *postgreSQLSchema,
+				User:     *postgreSQLUser,
+				Password: *postgreSQLPassword,
+				SSLMode:  *postgreSQLSSLMode,
+			}
+			if err := supervisor.Run(ctx, "postgresql", reporter.PostgreSqlWriter(attestationEvents, pgCfg)); err != nil {
 				return err
 			}
 		}
