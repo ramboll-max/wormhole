@@ -3,6 +3,7 @@ package reporter
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -12,7 +13,7 @@ const (
 	TableNamePayloadNFTTransfer   = "payload_nft_transfer"
 	TableNamePayloadTokenTransfer = "payload_token_transfer"
 
-	MessagePublicationDDLTemplate = `CREATE TABLE %s.message_publication (
+	MessagePublicationDDLTemplate = `CREATE TABLE schema.message_publication (
 	emitter_chain int4 NOT NULL,
 	emitter_address varchar(128) NOT NULL,
 	msg_sequence numeric(32) NOT NULL,
@@ -26,7 +27,7 @@ const (
 	reporter_host_name varchar(256) NULL,
 	CONSTRAINT message_publication_pkey PRIMARY KEY (emitter_chain, emitter_address, msg_sequence)
 )`
-	QuorumStateDDLTemplate = `CREATE TABLE %s.quorum_state (
+	QuorumStateDDLTemplate = `CREATE TABLE schema.quorum_state (
 	emitter_chain int4 NOT NULL,
 	emitter_address varchar(128) NOT NULL,
 	msg_sequence numeric(32) NOT NULL,
@@ -34,7 +35,7 @@ const (
 	create_time timestamptz NOT NULL,
 	CONSTRAINT quorum_state_pkey PRIMARY KEY (emitter_chain, emitter_address, msg_sequence)
 )`
-	PayloadAssetMetaTemplate = `CREATE TABLE %s.payload_asset_meta (
+	PayloadAssetMetaTemplate = `CREATE TABLE schema.payload_asset_meta (
 	id bigserial NOT NULL,
 	payload_id int2 NOT NULL,
 	token_address varchar(128) NOT NULL,
@@ -44,8 +45,12 @@ const (
 	token_name varchar(128) NOT NULL,
 	create_time timestamptz NOT NULL,
 	CONSTRAINT payload_asset_meta_pkey PRIMARY KEY (id)
-)`
-	PayloadNFTTransferTemplate = `CREATE TABLE %s.payload_nft_transfer (
+);
+CREATE UNIQUE INDEX payload_asset_meta_token_address_idx ON schema.payload_asset_meta USING btree (
+	token_address, 
+	token_chain
+);`
+	PayloadNFTTransferTemplate = `CREATE TABLE schema.payload_nft_transfer (
 	id bigserial NOT NULL,
 	payload_id int2 NOT NULL,
 	origin_address varchar(128) NOT NULL,
@@ -59,7 +64,7 @@ const (
 	create_time timestamptz NOT NULL,
 	CONSTRAINT payload_nft_transfer_pkey PRIMARY KEY (id)
 )`
-	PayloadTokenTransferTemplate = `CREATE TABLE %s.payload_token_transfer (
+	PayloadTokenTransferTemplate = `CREATE TABLE schema.payload_token_transfer (
 	id bigserial NOT NULL,
 	payload_id int2 NOT NULL,
 	amount numeric(128) NOT NULL,
@@ -86,7 +91,7 @@ func (w *postgreSqlWriter) initTable(tableName, ddlTemplate string) error {
 	} else if err == sql.ErrNoRows {
 		// No rows, table not exist, create it.
 		w.logger.Info(fmt.Sprintf("Table %s not exist, create it.", tableName))
-		exec := fmt.Sprintf(ddlTemplate, w.dbCfg.Schema)
+		exec := strings.ReplaceAll(ddlTemplate, "schema.", w.dbCfg.Schema+".")
 		_, err = w.db.ExecContext(w.ctx, exec)
 		if err == nil {
 			w.logger.Info(fmt.Sprintf("Table %s created.", tableName))
