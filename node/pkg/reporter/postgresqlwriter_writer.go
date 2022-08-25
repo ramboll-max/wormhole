@@ -2,17 +2,54 @@ package reporter
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"encoding/base64"
 	"fmt"
 	"github.com/certusone/wormhole/node/pkg/vaa"
+	"reflect"
+	"strconv"
 	"strings"
 )
+
+const maxAllowedUInt64 = 1<<63 - 1
 
 func (w *postgreSqlWriter) CleanTransaction(tx *sql.Tx) {
 	err := tx.Rollback()
 	if err != nil && err != sql.ErrTxDone {
 		w.logger.Error("Failed to rollback transaction: " + err.Error())
 	}
+}
+
+func (w *postgreSqlWriter) ConvertValue(v interface{}) driver.Value {
+	if driver.IsValue(v) {
+		return v
+	}
+
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Ptr:
+		// indirect pointers
+		if rv.IsNil() {
+			return nil
+		}
+		return w.ConvertValue(rv.Elem().Interface())
+	case reflect.Uint64:
+		u64 := rv.Uint()
+		if u64 > maxAllowedUInt64 {
+			s := strconv.FormatUint(u64, 10)
+			bytes := []byte(s)
+			return bytes
+		}
+		// default behaviour to convert uint64 to int64
+		return int64(u64)
+	}
+
+	res, err := driver.DefaultParameterConverter.ConvertValue(v)
+	if err != nil {
+		w.logger.Fatal("Failed to convert value: " + err.Error())
+		return nil
+	}
+	return res
 }
 
 func (w *postgreSqlWriter) writeTokenTransfer(tx *sql.Tx, tokenTransfer *TokenTransferPayload) (tableId int64, err error) {
@@ -137,7 +174,7 @@ func (w *postgreSqlWriter) writeMessagePublication(msg *MessagePublication, host
 	_, err = tx.ExecContext(w.ctx, exec,
 		msg.VAA.EmitterChain,
 		msg.VAA.EmitterAddress.String(),
-		msg.VAA.Sequence,
+		w.ConvertValue(msg.VAA.Sequence),
 		msg.VAA.Version,
 		msg.VAA.GuardianSetIndex,
 		msg.VAA.Timestamp,
@@ -174,7 +211,7 @@ func (w *postgreSqlWriter) writeQuorumState(v *vaa.VAA) error {
 	_, err = w.db.ExecContext(w.ctx, exec,
 		v.EmitterChain,
 		v.EmitterAddress.String(),
-		v.Sequence,
+		w.ConvertValue(v.Sequence),
 		base64.StdEncoding.EncodeToString(vaaMarshal))
 	if err != nil {
 		return fmt.Errorf("failed to insert quorum_state: %w", err)
